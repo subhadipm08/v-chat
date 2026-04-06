@@ -12,17 +12,27 @@ import connectToSocket from "./socket/index.js";
 
 const app = express();
 const server = createServer(app);
-const frontendOrigin = process.env.CORS_ORIGIN ;
+const frontendOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",")
+  : ["http://localhost:5173"];
 
 // Gracefully attach socket io to HTTP server
 const io = connectToSocket(server);
 
 // Middleware
 app.use(helmet());
-app.use(cors({
-  origin: frontendOrigin,
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: "40kb" }));
 app.use(express.urlencoded({ extended: true, limit: "40kb" }));
 
