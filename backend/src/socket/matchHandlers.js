@@ -75,51 +75,52 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       // Ensure user is disconnected from previous match rooms first
       await leaveMatchRooms('partner-disconnected');
 
-      const matchedSocketId = await redisClient.spop(MATCH_QUEUE_KEY);
+      // Find a valid partner in the queue using a pop-verify loop
+      let matchedSocketId = null;
+      let partnerUserId = null;
+      let skippedSockets = [];
+      let attempts = 0;
 
-      if (!matchedSocketId) {
-        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
-        socket.emit('waiting-match');
-        await unlockUser(userId);
-        return;
+      while (attempts < 5) {
+        attempts++;
+        matchedSocketId = await redisClient.spop(MATCH_QUEUE_KEY);
+        if (!matchedSocketId) break; // Queue empty
+
+        if (matchedSocketId === socket.id) {
+          continue; // popped ourselves, keep looking
+        }
+
+        partnerUserId = await redisClient.get(`socket:${matchedSocketId}:user`);
+        if (!partnerUserId) {
+          continue; // dead or disconnected socket
+        }
+
+        const isPartnerActive = await redisClient.sismember('active_matches', partnerUserId);
+        if (isPartnerActive) {
+          continue; // Partner already matched via another concurrent loop
+        }
+
+        if (partnerUserId === userId) {
+          // Found our own alternate tab/session! Skip them to avoid matching self.
+          skippedSockets.push(matchedSocketId);
+          continue;
+        }
+
+        break; // Found a perfectly valid partner!
       }
 
-      if (matchedSocketId === socket.id) {
-        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
-        socket.emit('waiting-match');
-        await unlockUser(userId);
-        return;
+      if (attempts >= 5 && !matchedSocketId) {
+        logger.warn({ socketId: socket.id }, 'Matchmaking loop hit attempt limit');
       }
 
-      const partnerSocket = io.sockets.sockets.get(matchedSocketId);
-      const partnerUserId = partnerSocket?.user?._id?.toString();
-
-      if (!partnerSocket?.connected || !partnerUserId) {
-        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
-        socket.emit('waiting-match');
-        await unlockUser(userId);
-        return;
-      }
-      
-      const isPartnerActive = await redisClient.sismember('active_matches', partnerUserId);
-      if (isPartnerActive) {
-        // Partner is already in a match, ignore them and requeue self
-        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
-        socket.emit('waiting-match');
-        await unlockUser(userId);
-        return;
+      // Put back anyone we temporarily popped but decided to skip (like our own exact alternate sessions)
+      if (skippedSockets.length > 0) {
+        await redisClient.sadd(MATCH_QUEUE_KEY, ...skippedSockets);
       }
 
-      if (!partnerSocket?.connected || !partnerUserId) {
+      if (!matchedSocketId || !partnerUserId) {
+        // No valid partner found, insert self and wait
         await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
-        socket.emit('waiting-match');
-        await unlockUser(userId);
-        return;
-      }
-
-      if (partnerUserId === userId) {
-        // Matched self from another session. Put both back in queue? Nah, just put self back.
-        await redisClient.sadd(MATCH_QUEUE_KEY, matchedSocketId, socket.id);
         socket.emit('waiting-match');
         await unlockUser(userId);
         return;
@@ -131,8 +132,9 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       // Mark both users as actively matched
       await redisClient.sadd('active_matches', userId, partnerUserId);
 
+      // In a distributed Redis-adapter setup, we can use socketsJoin on individual sockets
       socket.join(roomId);
-      partnerSocket.join(roomId);
+      io.in(matchedSocketId).socketsJoin(roomId);
 
       const initialMediaStates = await parseRoomMediaStates(roomId);
 
@@ -140,13 +142,14 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
         matchId: match._id.toString(),
         roomId,
         users: [userId, partnerUserId],
-        partnerSocketId: partnerSocket.id,
+        partnerSocketId: matchedSocketId,
         partnerUserId,
         shouldInitiate: true,
         initialMediaStates,
       });
 
-      partnerSocket.emit('match-found', {
+      // Emit to partner (works across Node cluster)
+      io.to(matchedSocketId).emit('match-found', {
         matchId: match._id.toString(),
         roomId,
         users: [userId, partnerUserId],
