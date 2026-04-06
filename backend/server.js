@@ -8,6 +8,13 @@ import { Session } from './src/models/session.model.js';
 
 dotenv.config({ quiet: true });
 
+const requiredEnv = ['MONGO_URL', 'REDIS_URL', 'JWT_SECRET', 'CORS_ORIGIN'];
+const missingEnv = requiredEnv.filter((env) => !process.env[env]);
+if (missingEnv.length > 0) {
+    console.error(`FATAL: Missing required environment variables: ${missingEnv.join(', ')}`);
+    process.exit(1);
+}
+
 const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {

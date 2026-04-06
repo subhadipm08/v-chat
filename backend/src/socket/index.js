@@ -10,11 +10,13 @@ import { authenticateSocket } from './socketAuth.js';
 import { getSocketUserKey, getUserSocketSetKey } from './socketState.js';
 
 const connectToSocket = (httpServer) => {
-  const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map((origin) => origin.trim())
+    : ['http://localhost:5173'];
 
   const io = new Server(httpServer, {
     cors: {
-      origin: frontendOrigin,
+      origin: allowedOrigins,
       methods: ['GET', 'POST'],
       credentials: true,
     },

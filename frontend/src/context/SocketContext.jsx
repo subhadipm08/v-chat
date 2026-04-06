@@ -14,6 +14,7 @@ export const SocketProvider = ({ children }) => {
     return io(SOCKET_URL, {
       autoConnect: false,
       withCredentials: true,
+      path: '/socket.io',
       transports: ['websocket'],
     });
   }, [user]);
@@ -23,10 +24,16 @@ export const SocketProvider = ({ children }) => {
       return undefined;
     }
 
+    const handleConnectError = () => {
+      // Avoid noisy development warnings for expected short-lived connection attempts.
+    };
+
+    socket.on('connect_error', handleConnectError);
     socket.connect();
 
     return () => {
-      socket.close();
+      socket.off('connect_error', handleConnectError);
+      socket.disconnect();
     };
   }, [socket]);
 

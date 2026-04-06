@@ -1,42 +1,28 @@
-# Stage 1: Builder
-# Use Alpine Linux for a minimal image footprint, securely reducing attack surface.
-FROM node:20-alpine AS builder
+FROM node:20-alpine AS deps
 
-# Set working directory for predictable path execution
 WORKDIR /app
 
-# Copy package files first to leverage Docker's layer caching mechanism
 COPY package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Install only production dependencies.
-# 'npm ci' ensures reproducible builds via package-lock.json strictness.
-RUN npm ci --omit=dev
-
-# Copy application source code (.dockerignore will filter out .env and heavy caches)
-COPY . .
-
-
-# Stage 2: Production Runtime
-FROM node:20-alpine
+FROM node:20-alpine AS runtime
 
 WORKDIR /app
 
-# Explicitly copy only the necessary files over from the builder stage
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/server.js ./
-COPY --from=builder /app/src ./src
-
-# Strict Environment Variable configurations
 ENV NODE_ENV=production
 ENV PORT=5000
 
-# Security Hardening: Switch from root to an unprivileged user
-# The 'node' user is pre-baked into the node alpine image
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json ./
+COPY server.js ./
+COPY src ./src
+
 RUN chown -R node:node /app
 USER node
 
-# Expose the correct port for internal routing constraints
 EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 5000) + '/api/healthz').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["node", "server.js"]

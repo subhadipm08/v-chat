@@ -6,16 +6,18 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 export const authCookieOptions = {
   httpOnly: true,
-  sameSite: isProduction ? 'none' : 'lax',
-  secure: isProduction,
+  // TODO: Switch back to sameSite: 'none' and secure: true (or isProduction) when running over HTTPS
+  sameSite: 'lax', 
+  secure: false, // TEMPORARY: Allow cookies over plain HTTP. 
   maxAge: ONE_WEEK_IN_MS,
   path: '/',
 };
 
 export const clearAuthCookieOptions = {
   httpOnly: true,
-  sameSite: isProduction ? 'none' : 'lax',
-  secure: isProduction,
+  // TODO: Switch back to sameSite: 'none' and secure: true (or isProduction) when running over HTTPS
+  sameSite: 'lax',
+  secure: false, // TEMPORARY: Allow cookies over plain HTTP.
   path: '/',
 };
 
