@@ -8,7 +8,12 @@ const DEFAULT_MEDIA_STATE = { isMicOn: true, isCameraOn: true };
 let cachedIceServers = null;
 let iceFetchPromise = null;
 
-export function useWebRTC(socket, roomId) {
+export function useWebRTC(socket, roomIdProps) {
+  const roomIdRef = useRef(roomIdProps);
+  useEffect(() => {
+    roomIdRef.current = roomIdProps;
+  }, [roomIdProps]);
+
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const [qualityStats, setQualityStats] = useState(DEFAULT_QUALITY_STATS);
@@ -165,7 +170,7 @@ export function useWebRTC(socket, roomId) {
           socket.emit('ice-candidate', {
             candidate: event.candidate,
             target: targetSocketId,
-            roomId,
+            roomId: roomIdRef.current,
           });
         }
       };
@@ -199,7 +204,7 @@ export function useWebRTC(socket, roomId) {
 
       return peerConnection;
     },
-    [cleanupPeerConnection, getIceServers, roomId, socket]
+    [cleanupPeerConnection, getIceServers, socket]
   );
 
   const handleOffer = useCallback(
@@ -225,7 +230,7 @@ export function useWebRTC(socket, roomId) {
       socket.emit('answer', {
         payload: answer,
         target: callerSocketId,
-        roomId: incomingRoomId ?? roomId,
+        roomId: incomingRoomId ?? roomIdRef.current,
       });
 
       // Flush queued ICE candidates now that remote description is set
@@ -239,7 +244,7 @@ export function useWebRTC(socket, roomId) {
       }
       iceCandidateQueues.current[callerSocketId] = [];
     },
-    [createPeerConnection, roomId, socket]
+    [createPeerConnection, socket]
   );
 
   const handleAnswer = useCallback(async (payload, answererSocketId) => {
@@ -291,7 +296,7 @@ export function useWebRTC(socket, roomId) {
         socket.emit('offer', {
           payload: offer,
           target: targetSocketId,
-          roomId,
+          roomId: roomIdRef.current,
         });
       } catch (err) {
         console.error('Error initiating call:', err);
@@ -299,7 +304,7 @@ export function useWebRTC(socket, roomId) {
         makingOffers.current[targetSocketId] = false;
       }
     },
-    [createPeerConnection, roomId, socket]
+    [createPeerConnection, socket]
   );
 
   const toggleMedia = useCallback(
@@ -327,15 +332,15 @@ export function useWebRTC(socket, roomId) {
       setLocalMediaState({ isMicOn: nextMicOn, isCameraOn: nextCameraOn });
       syncLocalStream();
 
-      if (socket && roomId) {
+      if (socket && roomIdRef.current) {
         socket.emit('media-state-change', {
-          roomId,
+          roomId: roomIdRef.current,
           isMicOn: nextMicOn,
           isCameraOn: nextCameraOn,
         });
       }
     },
-    [localMediaState, roomId, socket, syncLocalStream]
+    [localMediaState, socket, syncLocalStream]
   );
 
   const setInitialRemoteMediaStates = useCallback((states = {}) => {
