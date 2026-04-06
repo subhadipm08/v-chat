@@ -25,6 +25,10 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
   };
 
   const leaveMatchRooms = async (eventName) => {
+    // ALWAYS force-clear the user's active presence and locks to prevent ghosting
+    await redisClient.srem('active_matches', userId);
+    await unlockUser(userId);
+
     const matchRooms = Array.from(socket.rooms).filter(
       (roomId) => roomId !== socket.id && isMatchRoom(roomId)
     );
@@ -33,7 +37,6 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       socket.leave(roomId);
       socket.to(roomId).emit(eventName, { roomId, userId, socketId: socket.id });
       await redisClient.hdel(getRoomMediaStateKey(roomId), userId);
-      await redisClient.srem('active_matches', userId);
       await markMatchEnded(roomId);
     }
   };
@@ -98,12 +101,6 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
         const isPartnerActive = await redisClient.sismember('active_matches', partnerUserId);
         if (isPartnerActive) {
           continue; // Partner already matched via another concurrent loop
-        }
-
-        if (partnerUserId === userId) {
-          // Found our own alternate tab/session! Skip them to avoid matching self.
-          skippedSockets.push(matchedSocketId);
-          continue;
         }
 
         break; // Found a perfectly valid partner!

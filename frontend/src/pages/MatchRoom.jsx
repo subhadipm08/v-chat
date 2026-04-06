@@ -117,14 +117,8 @@ export default function MatchRoom() {
       socket.off('partner-disconnected', handlePartnerDisconnected);
       socket.off('error', handleSocketError);
     };
-  }, [
-    initializeMedia,
-    initiateCall,
-    resetCallState,
-    setInitialRemoteMediaStates,
-    socket,
-    stopMedia,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket]);
 
   const handleSkip = () => {
     if (!socket || isSkippingRef.current) {
