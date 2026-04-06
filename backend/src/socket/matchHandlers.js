@@ -21,7 +21,7 @@ const markMatchEnded = async (roomId) => {
 
 export const registerMatchHandlers = ({ io, socket, userId }) => {
   const removeFromQueue = async () => {
-    await redisClient.lrem(MATCH_QUEUE_KEY, 0, socket.id);
+    await redisClient.srem(MATCH_QUEUE_KEY, socket.id);
   };
 
   const leaveMatchRooms = async (eventName) => {
@@ -33,31 +33,61 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       socket.leave(roomId);
       socket.to(roomId).emit(eventName, { roomId, userId, socketId: socket.id });
       await redisClient.hdel(getRoomMediaStateKey(roomId), userId);
+      await redisClient.srem('active_matches', userId);
       await markMatchEnded(roomId);
     }
+  };
+
+  const isUserMatching = async (userId) => {
+        const key = `match_lock:${userId}`;
+        const lockAcquired = await redisClient.set(key, '1', 'EX', 10, 'NX');
+        if (!lockAcquired) return true; // Could not acquire lock, user is currently matching
+        
+        const isActive = await redisClient.sismember('active_matches', userId);
+        if (isActive) {
+           await redisClient.del(key); 
+           return true; // User is already in an active match
+        }
+        
+        return false;
+  };
+  
+  const unlockUser = async (userId) => {
+        await redisClient.del(`match_lock:${userId}`);
   };
 
   socket.on('join-random', async () => {
     try {
       await removeFromQueue();
+      
+      const isLocked = await isUserMatching(userId);
+      if (isLocked) {
+         return; // User is already in matchmaking or match process
+      }
 
-      const queueLength = await redisClient.llen(MATCH_QUEUE_KEY);
+      const queueLength = await redisClient.scard(MATCH_QUEUE_KEY);
       if (queueLength > 5000) {
         socket.emit('error', { message: 'Matchmaking queue full, try again later' });
+        await unlockUser(userId);
         return;
       }
 
-      const matchedSocketId = await redisClient.lpop(MATCH_QUEUE_KEY);
+      // Ensure user is disconnected from previous match rooms first
+      await leaveMatchRooms('partner-disconnected');
+
+      const matchedSocketId = await redisClient.spop(MATCH_QUEUE_KEY);
 
       if (!matchedSocketId) {
-        await redisClient.rpush(MATCH_QUEUE_KEY, socket.id);
+        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
         socket.emit('waiting-match');
+        await unlockUser(userId);
         return;
       }
 
       if (matchedSocketId === socket.id) {
-        await redisClient.rpush(MATCH_QUEUE_KEY, socket.id);
+        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
         socket.emit('waiting-match');
+        await unlockUser(userId);
         return;
       }
 
@@ -65,19 +95,41 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       const partnerUserId = partnerSocket?.user?._id?.toString();
 
       if (!partnerSocket?.connected || !partnerUserId) {
-        await redisClient.rpush(MATCH_QUEUE_KEY, socket.id);
+        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
         socket.emit('waiting-match');
+        await unlockUser(userId);
+        return;
+      }
+      
+      const isPartnerActive = await redisClient.sismember('active_matches', partnerUserId);
+      if (isPartnerActive) {
+        // Partner is already in a match, ignore them and requeue self
+        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
+        socket.emit('waiting-match');
+        await unlockUser(userId);
+        return;
+      }
+
+      if (!partnerSocket?.connected || !partnerUserId) {
+        await redisClient.sadd(MATCH_QUEUE_KEY, socket.id);
+        socket.emit('waiting-match');
+        await unlockUser(userId);
         return;
       }
 
       if (partnerUserId === userId) {
-        await redisClient.rpush(MATCH_QUEUE_KEY, matchedSocketId, socket.id);
+        // Matched self from another session. Put both back in queue? Nah, just put self back.
+        await redisClient.sadd(MATCH_QUEUE_KEY, matchedSocketId, socket.id);
         socket.emit('waiting-match');
+        await unlockUser(userId);
         return;
       }
 
       const match = await new Match({ users: [userId, partnerUserId] }).save();
       const roomId = `match:${match._id.toString()}`;
+
+      // Mark both users as actively matched
+      await redisClient.sadd('active_matches', userId, partnerUserId);
 
       socket.join(roomId);
       partnerSocket.join(roomId);
@@ -103,7 +155,10 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
         shouldInitiate: false,
         initialMediaStates,
       });
+      
+      await unlockUser(userId);
     } catch (err) {
+      await unlockUser(userId);
       logger.error({ err, socketId: socket.id }, 'Matchmaking error');
       socket.emit('error', { message: 'Unable to start matchmaking right now' });
     }

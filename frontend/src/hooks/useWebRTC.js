@@ -4,6 +4,10 @@ import { API_BASE_URL } from '../lib/config';
 const DEFAULT_QUALITY_STATS = { packetLoss: 0, bitrate: 0 };
 const DEFAULT_MEDIA_STATE = { isMicOn: true, isCameraOn: true };
 
+// Module-level cache for ICE servers
+let cachedIceServers = null;
+let iceFetchPromise = null;
+
 export function useWebRTC(socket, roomId) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
@@ -15,6 +19,8 @@ export function useWebRTC(socket, roomId) {
   const peerConnections = useRef({});
   const peerMetadata = useRef({});
   const statsIntervals = useRef({});
+  const iceCandidateQueues = useRef({});
+  const makingOffers = useRef({});
   const localStreamRef = useRef(null);
   const hasInitialized = useRef(false);
   const mediaPromiseRef = useRef(null);
@@ -58,11 +64,15 @@ export function useWebRTC(socket, roomId) {
         peerConnection.ontrack = null;
         peerConnection.onicecandidate = null;
         peerConnection.onconnectionstatechange = null;
+        peerConnection.onnegotiationneeded = null;
         peerConnection.close();
-        delete peerConnections.current[socketId];
       }
-
+      
+      delete peerConnections.current[socketId];
       delete peerMetadata.current[socketId];
+      delete makingOffers.current[socketId];
+      delete iceCandidateQueues.current[socketId];
+
       clearRemoteParticipant(remoteUserId);
     },
     [clearRemoteParticipant]
@@ -103,22 +113,32 @@ export function useWebRTC(socket, roomId) {
   }, []);
 
   const getIceServers = useCallback(async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/rooms/ice-servers`, {
-        credentials: 'include',
+    if (cachedIceServers) return cachedIceServers;
+    if (iceFetchPromise) return iceFetchPromise;
+
+    iceFetchPromise = fetch(`${API_BASE_URL}/api/rooms/ice-servers`, {
+      credentials: 'include',
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        cachedIceServers = data.iceServers;
+        return cachedIceServers;
+      })
+      .catch(() => {
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+      })
+      .finally(() => {
+        iceFetchPromise = null;
       });
 
-      const data = await response.json();
-      return data.iceServers;
-    } catch {
-      return [{ urls: 'stun:stun.l.google.com:19302' }];
-    }
+    return iceFetchPromise;
   }, []);
 
   const createPeerConnection = useCallback(
     async (targetSocketId, remoteUserId) => {
       if (peerConnections.current[targetSocketId]) {
-        return peerConnections.current[targetSocketId];
+        // Strict PC handling: Never reuse old connection.
+        cleanupPeerConnection(targetSocketId, remoteUserId);
       }
 
       const iceServers = await getIceServers();
@@ -184,8 +204,21 @@ export function useWebRTC(socket, roomId) {
 
   const handleOffer = useCallback(
     async (payload, callerId, callerSocketId, incomingRoomId) => {
-      const peerConnection = await createPeerConnection(callerSocketId, callerId);
+      let peerConnection = peerConnections.current[callerSocketId];
+      const offerCollision =
+        peerConnection &&
+        (makingOffers.current[callerSocketId] || peerConnection.signalingState !== 'stable');
+      
+      if (offerCollision) {
+        return; // Ignore incoming offer based on perfect negotiation collision handling
+      }
+
+      if (!peerConnection) {
+        peerConnection = await createPeerConnection(callerSocketId, callerId);
+      }
+
       await peerConnection.setRemoteDescription(new RTCSessionDescription(payload));
+      
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
@@ -194,6 +227,17 @@ export function useWebRTC(socket, roomId) {
         target: callerSocketId,
         roomId: incomingRoomId ?? roomId,
       });
+
+      // Flush queued ICE candidates now that remote description is set
+      const queuedCandidates = iceCandidateQueues.current[callerSocketId] || [];
+      for (const candidate of queuedCandidates) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (e) { 
+          console.error('Failed to add queued candidate', e);
+        }
+      }
+      iceCandidateQueues.current[callerSocketId] = [];
     },
     [createPeerConnection, roomId, socket]
   );
@@ -205,30 +249,55 @@ export function useWebRTC(socket, roomId) {
     }
 
     await peerConnection.setRemoteDescription(new RTCSessionDescription(payload));
+
+    // Flush queued ICE candidates now that remote description is set
+    const queuedCandidates = iceCandidateQueues.current[answererSocketId] || [];
+    for (const candidate of queuedCandidates) {
+      try {
+        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch (e) {
+        console.error('Failed to add queued candidate', e);
+      }
+    }
+    iceCandidateQueues.current[answererSocketId] = [];
   }, []);
 
   const handleIceCandidate = useCallback(async (candidate, senderSocketId) => {
     const peerConnection = peerConnections.current[senderSocketId];
-    if (peerConnection) {
-      try {
+    if (!peerConnection) return;
+
+    try {
+      if (!peerConnection.remoteDescription) {
+        if (!iceCandidateQueues.current[senderSocketId]) {
+          iceCandidateQueues.current[senderSocketId] = [];
+        }
+        iceCandidateQueues.current[senderSocketId].push(candidate);
+      } else {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (error) {
-        console.error('Error adding ice candidate', error);
       }
+    } catch (error) {
+      console.error('Error adding ice candidate', error);
     }
   }, []);
 
   const initiateCall = useCallback(
     async (targetSocketId, remoteUserId) => {
       const peerConnection = await createPeerConnection(targetSocketId, remoteUserId);
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
+      try {
+        makingOffers.current[targetSocketId] = true;
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
 
-      socket.emit('offer', {
-        payload: offer,
-        target: targetSocketId,
-        roomId,
-      });
+        socket.emit('offer', {
+          payload: offer,
+          target: targetSocketId,
+          roomId,
+        });
+      } catch (err) {
+        console.error('Error initiating call:', err);
+      } finally {
+        makingOffers.current[targetSocketId] = false;
+      }
     },
     [createPeerConnection, roomId, socket]
   );
@@ -282,6 +351,7 @@ export function useWebRTC(socket, roomId) {
     mediaPromiseRef.current = null;
     hasInitialized.current = false;
     setLocalStream(null);
+    setRemoteStreams({}); // Triggers VideoTile.jsx srcObject = null for all
     setLocalMediaState(DEFAULT_MEDIA_STATE);
   }, []);
 

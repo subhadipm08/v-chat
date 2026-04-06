@@ -12,6 +12,7 @@ export default function MatchRoom() {
   const [status, setStatus] = useState('Joining queue...');
   const [activeRoomId, setActiveRoomId] = useState(null);
   const rematchTimerRef = useRef(null);
+  const isSkippingRef = useRef(false);
   const navigate = useNavigate();
 
   const {
@@ -37,6 +38,8 @@ export default function MatchRoom() {
     }
 
     const queueForAnotherMatch = (nextStatus) => {
+      if (isSkippingRef.current) return;
+      isSkippingRef.current = true;
       setStatus(nextStatus);
       setActiveRoomId(null);
       resetCallState();
@@ -49,7 +52,8 @@ export default function MatchRoom() {
 
       rematchTimerRef.current = window.setTimeout(() => {
         socket.emit('join-random');
-      }, 300);
+        isSkippingRef.current = false;
+      }, 500);
     };
 
     const joinQueue = async () => {
@@ -123,10 +127,11 @@ export default function MatchRoom() {
   ]);
 
   const handleSkip = () => {
-    if (!socket) {
+    if (!socket || isSkippingRef.current) {
       return;
     }
 
+    isSkippingRef.current = true;
     setStatus('Skipping...');
     setActiveRoomId(null);
     resetCallState();
@@ -139,7 +144,8 @@ export default function MatchRoom() {
 
     rematchTimerRef.current = window.setTimeout(() => {
       socket.emit('join-random');
-    }, 300);
+      isSkippingRef.current = false;
+    }, 500);
   };
 
   return (

@@ -13,5 +13,8 @@ export const apiLimiter = rateLimit({
   limit: 100,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
+  skip: (req) => {
+    return req.originalUrl.includes('/api/rooms/ice-servers');
+  },
   message: { error: 'Too many requests, please try again later.' }
 });
