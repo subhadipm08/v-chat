@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { AuthContext } from './context/auth-context';
 import Auth from './pages/Auth';
+import Dashboard from './pages/Dashboard';
 import Home from './pages/Home';
 import PrivateRoom from './pages/PrivateRoom';
 import MatchRoom from './pages/MatchRoom';
@@ -22,9 +23,10 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={
+          <Route path="/" element={<Home />} />
+          <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Home />
+              <Dashboard />
             </ProtectedRoute>
           } />
           <Route path="/room/:roomId" element={

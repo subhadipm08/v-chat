@@ -1,5 +1,6 @@
 import express from "express";
 import { createServer } from "node:http";
+import crypto from "node:crypto";
 import cors from "cors";
 import logger from "./utils/logger.js";
 import { apiLimiter } from "./middleware/rateLimiter.js";
@@ -41,8 +42,10 @@ app.use(express.urlencoded({ extended: true, limit: "40kb" }));
 
 // Express Request Logging
 app.use((req, res, next) => {
+  req.id = crypto.randomUUID();
+  res.setHeader('X-Request-Id', req.id);
   if (req.url.startsWith('/health') || req.url.startsWith('/api/health')) return next();
-  logger.info({ method: req.method, url: req.url }, 'Incoming Request');
+  logger.info({ method: req.method, url: req.url, requestId: req.id }, 'Incoming Request');
   next();
 });
 

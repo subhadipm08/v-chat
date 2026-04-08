@@ -37,10 +37,7 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
     }
 
     if (updatedRoom.currentParticipants.length === 0) {
-      await Room.updateOne(
-        { roomId },
-        { status: 'WAITING', endedAt: new Date() }
-      );
+      await Room.deleteOne({ roomId });
     }
 
     await redisClient.hdel(getRoomMediaStateKey(roomId), userId);
@@ -52,7 +49,7 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
     }
 
     socket.leave(roomId);
-    socket.to(roomId).emit('user-left', { userId, socketId: socket.id });
+    socket.to(roomId).emit('user-left', { userId, socketId: socket.id, username: socket.user?.username });
     await removeParticipantIfInactive(roomId);
     await endSession(socket.id, exitReason);
   };
@@ -92,11 +89,12 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
 
       await room.save();
 
-      socket.to(roomId).emit('user-joined', { userId, socketId: socket.id });
+      socket.to(roomId).emit('user-joined', { userId, socketId: socket.id, username: socket.user?.username });
 
       const existingUsers = socketsInRoom.map((existingSocket) => ({
         socketId: existingSocket.id,
         userId: existingSocket.user._id.toString(),
+        username: existingSocket.user.username,
       }));
 
       socket.emit('room-joined', {
@@ -107,6 +105,19 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
     } catch (err) {
       logger.error({ err, roomId, socketId: socket.id }, 'Join room error');
       socket.emit('error', { message: 'Unable to join room' });
+    }
+  });
+
+  socket.on('verify-room', async ({ roomId }, callback) => {
+    try {
+      const room = await Room.findOne({ roomId });
+      if (!room) {
+        callback({ valid: false, message: `Room with ID '${roomId}' does not exist.` });
+      } else {
+        callback({ valid: true });
+      }
+    } catch (err) {
+      callback({ valid: false, message: 'Server error' });
     }
   });
 

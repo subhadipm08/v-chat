@@ -3,6 +3,7 @@ import { AuthContext } from '../context/auth-context';
 import { useNavigate } from 'react-router-dom';
 import AuthForm from '../components/auth/AuthForm';
 import { API_BASE_URL } from '../lib/config';
+import '../styles/Auth.css';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);

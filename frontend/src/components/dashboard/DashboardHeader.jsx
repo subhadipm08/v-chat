@@ -3,8 +3,8 @@ import { LogOut, User, Video } from 'lucide-react';
 export default function DashboardHeader({ username, onLogout }) {
   return (
     <header className="page-header">
-      <h2 className="page-title">
-        <Video className="inline-icon" /> V-Conf
+      <h2 className="brand-logo">
+        <span className="brand-logo-icon"><Video size={20} /></span> V-Chat
       </h2>
 
       <div className="page-header-actions">

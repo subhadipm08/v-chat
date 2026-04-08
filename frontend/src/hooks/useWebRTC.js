@@ -20,6 +20,7 @@ export function useWebRTC(socket, roomIdProps) {
   const [mediaError, setMediaError] = useState(null);
   const [localMediaState, setLocalMediaState] = useState(DEFAULT_MEDIA_STATE);
   const [remoteMediaStates, setRemoteMediaStates] = useState({});
+  const [remoteUsernames, setRemoteUsernames] = useState({});
 
   const peerConnections = useRef({});
   const peerMetadata = useRef({});
@@ -90,6 +91,7 @@ export function useWebRTC(socket, roomIdProps) {
 
     setRemoteStreams({});
     setRemoteMediaStates({});
+    setRemoteUsernames({});
     setQualityStats(DEFAULT_QUALITY_STATS);
   }, [cleanupPeerConnection]);
 
@@ -378,12 +380,18 @@ export function useWebRTC(socket, roomIdProps) {
     const userLeftHandler = ({ userId: remoteUserId, socketId }) => {
       cleanupPeerConnection(socketId, remoteUserId);
     };
+    const userJoinedHandler = ({ userId, username }) => {
+      if (username) {
+        setRemoteUsernames((current) => ({ ...current, [userId]: username }));
+      }
+    };
 
     socket.on('offer', offerHandler);
     socket.on('answer', answerHandler);
     socket.on('ice-candidate', candidateHandler);
     socket.on('user-media-updated', mediaUpdateHandler);
     socket.on('user-left', userLeftHandler);
+    socket.on('user-joined', userJoinedHandler);
 
     return () => {
       socket.off('offer', offerHandler);
@@ -391,6 +399,7 @@ export function useWebRTC(socket, roomIdProps) {
       socket.off('ice-candidate', candidateHandler);
       socket.off('user-media-updated', mediaUpdateHandler);
       socket.off('user-left', userLeftHandler);
+      socket.off('user-joined', userJoinedHandler);
     };
   }, [cleanupPeerConnection, handleAnswer, handleIceCandidate, handleOffer, socket]);
 
@@ -405,7 +414,9 @@ export function useWebRTC(socket, roomIdProps) {
     qualityStats,
     localMediaState,
     remoteMediaStates,
+    remoteUsernames,
     setInitialRemoteMediaStates,
     resetCallState,
+    setRemoteUsernames
   };
 }

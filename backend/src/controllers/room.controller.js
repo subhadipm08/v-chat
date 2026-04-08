@@ -1,6 +1,18 @@
 import { Room } from '../models/room.model.js';
 import { nanoid } from 'nanoid';
 
+export const verifyRoom = async (req, res) => {
+  try {
+    const room = await Room.findOne({ roomId: req.params.roomId });
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' });
+    }
+    res.json({ valid: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to verify room' });
+  }
+};
+
 export const createRoom = async (req, res) => {
   try {
     const roomId = req.body.roomId ||nanoid(8);

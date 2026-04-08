@@ -33,4 +33,6 @@ const sessionSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
+sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
 export const Session = mongoose.model("Session", sessionSchema);

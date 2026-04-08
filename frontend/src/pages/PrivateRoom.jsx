@@ -1,84 +1,89 @@
-import { useContext, useEffect } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CallControls from '../components/call/CallControls';
 import RoomHeader from '../components/call/RoomHeader';
 import VideoTile from '../components/call/VideoTile';
+import DraggableWrapper from '../components/call/DraggableWrapper';
 import { AuthContext } from '../context/auth-context';
 import { SocketContext } from '../context/socket-context';
-import { useWebRTC } from '../hooks/useWebRTC';
+import { usePrivateRoomSession } from '../hooks/usePrivateRoomSession';
+import PreJoinScreen from '../components/call/PreJoinScreen';
+import { API_BASE_URL } from '../lib/config';
+import '../styles/Room.css';
+import '../styles/PrivateRoom.css';
 
 export default function PrivateRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
+  const [isValidatingRoom, setIsValidatingRoom] = useState(true);
+  const [roomError, setRoomError] = useState('');
   const { socket } = useContext(SocketContext);
   const { user } = useContext(AuthContext);
 
   const {
     localStream,
     remoteStreams,
-    initializeMedia,
-    stopMedia,
-    initiateCall,
     toggleMedia,
     mediaError,
     localMediaState,
     remoteMediaStates,
-    setInitialRemoteMediaStates,
-    resetCallState,
-  } = useWebRTC(socket, roomId);
+    remoteUsernames,
+    joinRoom,
+    leaveRoom,
+    hasJoined,
+    sessionError
+  } = usePrivateRoomSession(socket, roomId);
+
+  const remoteParticipants = Object.entries(remoteStreams).slice(0, 3); // Max 3 remotes + 1 local = 4
 
   useEffect(() => {
-    if (!socket) {
-      return undefined;
+    const checkRoomExists = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/rooms/verify/${roomId}`, {
+          credentials: 'include'
+        });
+        if (!res.ok) {
+          setRoomError(`Room with ID '${roomId}' does not exist.`);
+          setTimeout(() => navigate('/dashboard'), 3000);
+        }
+      } catch (err) {
+        setRoomError('Unable to verify room.');
+        setTimeout(() => navigate('/dashboard'), 3000);
+      } finally {
+        setIsValidatingRoom(false);
+      }
+    };
+    checkRoomExists();
+  }, [roomId, navigate]);
+
+  if (roomError || sessionError) {
+    return (
+      <div className="room-page" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1.5rem' }}>
+        <div className="banner banner-error" style={{ fontSize: '1.2rem', padding: '1rem 2rem' }}>{roomError || sessionError}</div>
+        <p style={{ color: 'var(--text-secondary)' }}>Redirecting to dashboard...</p>
+      </div>
+    );
+  }
+
+  if (!hasJoined) {
+    if (isValidatingRoom) {
+      return (
+        <div className="room-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div className="loader"></div>
+        </div>
+      );
     }
 
-    const joinRoom = async () => {
-      const stream = await initializeMedia();
-      if (stream) {
-        socket.emit('join-room', { roomId });
-      }
-    };
-
-    const handleRoomJoined = async ({ existingUsers, initialMediaStates }) => {
-      if (initialMediaStates) {
-        setInitialRemoteMediaStates(initialMediaStates);
-      }
-
-      for (const existingUser of existingUsers) {
-        if (existingUser.userId !== user.id) {
-          await initiateCall(existingUser.socketId, existingUser.userId);
-        }
-      }
-    };
-
-    const handleRoomFull = () => {
-      navigate('/');
-    };
-
-    joinRoom();
-    socket.on('room-joined', handleRoomJoined);
-    socket.on('room-full', handleRoomFull);
-
-    return () => {
-      stopMedia();
-      resetCallState();
-      socket.emit('leave-room', { roomId });
-      socket.off('room-joined', handleRoomJoined);
-      socket.off('room-full', handleRoomFull);
-    };
-  }, [
-    initializeMedia,
-    initiateCall,
-    navigate,
-    resetCallState,
-    roomId,
-    setInitialRemoteMediaStates,
-    socket,
-    stopMedia,
-    user.id,
-  ]);
-
-  const remoteParticipants = Object.entries(remoteStreams);
+    return (
+      <PreJoinScreen
+        localStream={localStream}
+        localMediaState={localMediaState}
+        toggleMedia={toggleMedia}
+        onJoin={joinRoom}
+        mediaError={mediaError}
+      />
+    );
+  }
 
   return (
     <div className="room-page">
@@ -86,28 +91,35 @@ export default function PrivateRoom() {
 
       {mediaError ? <div className="banner banner-error">{mediaError}</div> : null}
 
-      <div className="video-grid room-stage">
-        <VideoTile
-          stream={localStream}
-          label="You"
-          muted
-          isMicOn={localMediaState.isMicOn}
-          isCameraOn={localMediaState.isCameraOn}
-        />
+      <div className={`private-stage ${remoteParticipants.length === 0 ? 'empty-room' : ''}`}>
 
-        {remoteParticipants.map(([participantId, stream]) => (
+        {remoteParticipants.length > 0 && (
+          <div className="remote-grid" data-remotes={remoteParticipants.length}>
+            {remoteParticipants.map(([participantId, stream]) => (
+              <VideoTile
+                key={participantId}
+                stream={stream}
+                label={remoteUsernames[participantId] || "Participant"}
+                isMicOn={remoteMediaStates[participantId]?.isMicOn ?? true}
+                isCameraOn={remoteMediaStates[participantId]?.isCameraOn ?? true}
+              />
+            ))}
+          </div>
+        )}
+
+        <DraggableWrapper
+          className={remoteParticipants.length === 0 ? 'center-stage' : 'private-local-pip'}
+          isDraggable={remoteParticipants.length > 0}
+        >
           <VideoTile
-            key={participantId}
-            stream={stream}
-            label="Participant"
-            isMicOn={remoteMediaStates[participantId]?.isMicOn ?? true}
-            isCameraOn={remoteMediaStates[participantId]?.isCameraOn ?? true}
+            stream={localStream}
+            label="You"
+            muted
+            isMicOn={localMediaState.isMicOn}
+            isCameraOn={localMediaState.isCameraOn}
           />
-        ))}
+        </DraggableWrapper>
 
-        {!remoteParticipants.length ? (
-          <div className="glass-panel empty-state">Waiting for someone to join...</div>
-        ) : null}
       </div>
 
       <CallControls
@@ -115,7 +127,7 @@ export default function PrivateRoom() {
         isCameraOn={localMediaState.isCameraOn}
         onToggleAudio={() => toggleMedia('audio')}
         onToggleVideo={() => toggleMedia('video')}
-        onEnd={() => navigate('/')}
+        onEnd={leaveRoom}
       />
     </div>
   );

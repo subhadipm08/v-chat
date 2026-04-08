@@ -32,3 +32,10 @@ dist-ssr
 .eslintcache
 coverage/
 .turbo/
+
+# Certificates and Secrets
+*.pem
+*.key
+*.cert
+*.crt
+*.p12

@@ -17,4 +17,6 @@ const matchSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
+matchSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 });
+
 export const Match = mongoose.model("Match", matchSchema);

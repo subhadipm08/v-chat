@@ -1,4 +1,5 @@
 import { Match } from '../models/match.model.js';
+import { User } from '../models/user.model.js';
 import logger from '../utils/logger.js';
 import redisClient from '../utils/redis.js';
 import { getRoomMediaStateKey, isMatchRoom, MATCH_QUEUE_KEY } from './socketState.js';
@@ -135,12 +136,16 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
 
       const initialMediaStates = await parseRoomMediaStates(roomId);
 
+      const partnerUserStr = await redisClient.get(`socket:${matchedSocketId}:user`);
+      const partnerUser = await User.findById(partnerUserStr).select('username');
+
       socket.emit('match-found', {
         matchId: match._id.toString(),
         roomId,
         users: [userId, partnerUserId],
         partnerSocketId: matchedSocketId,
         partnerUserId,
+        partnerUsername: partnerUser?.username,
         shouldInitiate: true,
         initialMediaStates,
       });
@@ -152,6 +157,7 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
         users: [userId, partnerUserId],
         partnerSocketId: socket.id,
         partnerUserId: userId,
+        partnerUsername: socket.user?.username,
         shouldInitiate: false,
         initialMediaStates,
       });

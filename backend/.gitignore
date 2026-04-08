@@ -20,6 +20,13 @@ node_modules/
 # Coverage testing
 coverage/
 
+# Certificates and Secrets
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+
 # Misc
 .DS_Store
 .idea

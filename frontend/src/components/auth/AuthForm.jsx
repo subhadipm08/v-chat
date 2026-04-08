@@ -1,3 +1,5 @@
+import { Video } from 'lucide-react';
+
 export default function AuthForm({
   isLogin,
   formData,
@@ -9,6 +11,11 @@ export default function AuthForm({
   return (
     <div className="auth-container">
       <div className="glass-panel auth-card">
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+           <h2 className="brand-logo">
+             <span className="brand-logo-icon"><Video size={20} /></span> V-Chat
+           </h2>
+        </div>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>
           {isLogin ? 'Welcome Back' : 'Create Account'}
         </h2>

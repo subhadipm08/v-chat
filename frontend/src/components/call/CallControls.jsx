@@ -7,9 +7,10 @@ export default function CallControls({
   onToggleVideo,
   onEnd,
   extraAction = null,
+  floating = true,
 }) {
   return (
-    <div className="main-actions glass-panel" style={{ padding: '1rem', borderRadius: '50px' }}>
+    <div className={`${floating ? 'main-actions' : ''} glass-panel`} style={{ padding: '1rem', borderRadius: '50px', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
       <button className={`btn ${!isMicOn ? 'btn-danger' : ''}`} onClick={onToggleAudio}>
         {isMicOn ? <Mic /> : <MicOff />}
       </button>
@@ -28,9 +29,11 @@ export default function CallControls({
         </button>
       ) : null}
 
-      <button className="btn btn-danger" onClick={onEnd}>
-        <PhoneOff />
-      </button>
+      {onEnd && (
+        <button className="btn btn-danger" onClick={onEnd}>
+          <PhoneOff />
+        </button>
+      )}
     </div>
   );
 }

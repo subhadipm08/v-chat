@@ -1,0 +1,253 @@
+/* MatchRoom.css */
+
+.match-root {
+  flex: 1;
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  padding-bottom: 5rem; /* Space for the floating CallControls */
+  gap: 1rem;
+}
+
+.match-local-container,
+.match-remote-container {
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Ensure video fills the container entirely natively */
+.match-local-container .video-wrapper,
+.match-remote-container .video-wrapper {
+  border-radius: inherit;
+  width: 100%;
+  height: 100%;
+}
+
+.match-loading-panel {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+}
+
+/* -------------------------------------
+ * DESKTOP/LARGE SCREEN LAYOUT (WAITING ONLY)
+ * ------------------------------------- */
+@media (min-width: 800px) {
+  .match-root.waiting .match-local-container,
+  .match-root.waiting .match-remote-container {
+    flex: 1;
+  }
+}
+
+/* -------------------------------------
+ * MOBILE / SMALL SCREEN LAYOUT (WAITING ONLY)
+ * ------------------------------------- */
+@media (max-width: 799px) {
+  .match-page-context.is-waiting {
+    padding: 0 !important;
+  }
+  .match-header-context {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 20;
+    padding: 1.5rem !important;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+  }
+
+  .match-root.waiting {
+    display: block;
+    padding-bottom: 0; 
+  }
+  .match-root.waiting .match-local-container {
+    position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 0; z-index: 1;
+  }
+  .match-root.waiting .match-remote-container {
+    display: none;
+  }
+  .match-mobile-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    background: rgba(15, 23, 42, 0.7);
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    color: white;
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+  }
+}
+@media (min-width: 800px) {
+  .match-root.waiting .match-mobile-overlay {
+    display: none;
+  }
+}
+
+/* -------------------------------------
+ * UNIVERSAL CONNECTED LAYOUT (BOTH DESKTOP & MOBILE)
+ * Top Right PiP over Full Screen Stranger
+ * ------------------------------------- */
+.match-page-context.is-connected {
+  padding: 0 !important; /* Edge to edge */
+}
+
+/* Ensure the absolute positioning applies globally when connected */
+.match-root.connected {
+  display: block;
+  padding-bottom: 0;
+}
+
+.match-root.connected .match-local-container,
+.match-root.connected .match-remote-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* Stranger Full Screen Backdrop or Aspect Constraint */
+.match-root.connected .match-remote-container {
+  z-index: 1;
+  background: black;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* Centering logic defaults */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.match-root.connected .match-remote-container.aspect-full {
+  width: 100%;
+  height: 100%;
+}
+@media (min-width: 800px) {
+  .match-root.connected .match-remote-container.aspect-full {
+    width: 70%;
+    height: 80%;
+    border-radius: 16px;
+    box-shadow: 0 0 40px rgba(0,0,0,0.8);
+  }
+}
+.match-root.connected .match-remote-container.aspect-portrait {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 9/16;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8);
+}
+.match-root.connected .match-remote-container.aspect-landscape {
+  height: auto;
+  width: 100%;
+  aspect-ratio: 16/9;
+  box-shadow: 0 0 40px rgba(0,0,0,0.8);
+  max-height: 100%;
+}
+
+@media (min-width: 800px) {
+  .match-root.connected .match-remote-container.aspect-landscape {
+    width: 70%;
+    border-radius: 16px;
+  }
+}
+
+/* Aspect Toggles Floating Panel */
+.aspect-toggles {
+  position: absolute;
+  top: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+}
+@media (min-width: 800px) {
+  .aspect-toggles {
+    top: 2rem;
+  }
+}
+.aspect-toggles button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.aspect-toggles button:hover {
+  color: white;
+  background: rgba(255,255,255,0.1);
+}
+.aspect-toggles button.active {
+  color: var(--accent);
+  background: rgba(255,255,255,0.15);
+}
+
+/* You PiP Overlay */
+.match-root.connected .match-local-container {
+  z-index: 10;
+  left: auto;
+  right: 1.5rem;
+  top: 5rem;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  border: 2px solid rgba(255,255,255,0.2);
+}
+
+.match-root.connected .match-mobile-overlay {
+  display: none;
+}
+
+/* PiP Size Scaling between Mobile and Desktop */
+@media (max-width: 799px) {
+  .match-root.connected .match-local-container {
+    width: 110px;
+    height: 150px;
+  }
+}
+@media (min-width: 800px) {
+  .match-root.connected .match-local-container {
+    width: 240px;
+    height: 135px; /* 16:9 desktop crop */
+    right: 17%; /* shifted inward to overlap the 70% stranger container */
+    top: auto;
+    bottom: 7rem; /* pinned bottom right over the 70% frame */
+  }
+  .match-page-context.is-connected .match-header-context {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 20;
+    padding: 2rem !important;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+  }
+}
