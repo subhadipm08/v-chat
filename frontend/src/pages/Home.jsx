@@ -96,7 +96,7 @@ export default function Home() {
           </a>
         </p>
         <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#475569' }}>
-          © 2024 V-Chat. All rights reserved.
+          © 2026 V-Chat. All rights reserved.
         </p>
       </footer>
     </div>
