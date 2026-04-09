@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect, useRef } from 'react';
+import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { AuthContext } from '../context/auth-context';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../lib/config';
@@ -44,42 +44,52 @@ async function apiPost(path, body) {
 // ─── OTP Expiry + Resend countdown hook ────────────────────────────────────
 // Returns: { otpSecsLeft, resendSecsLeft, isOtpExpired, restartTimers }
 function useOtpTimers() {
-  const [otpSecsLeft, setOtpSecsLeft]       = useState(OTP_LIFETIME);
+  const [otpSecsLeft, setOtpSecsLeft] = useState(OTP_LIFETIME);
   const [resendSecsLeft, setResendSecsLeft] = useState(OTP_LIFETIME);
-  const otpRef    = useRef(null);
+  const otpRef = useRef(null);
   const resendRef = useRef(null);
 
-  const clearTimers = () => {
+  const clearTimers = useCallback(() => {
     clearInterval(otpRef.current);
     clearInterval(resendRef.current);
-  };
+  }, []);
 
-  const startTimers = () => {
+  const startTimers = useCallback(() => {
     clearTimers();
     setOtpSecsLeft(OTP_LIFETIME);
     setResendSecsLeft(OTP_LIFETIME);
 
     otpRef.current = setInterval(() => {
-      setOtpSecsLeft(prev => {
-        if (prev <= 1) { clearInterval(otpRef.current); return 0; }
+      setOtpSecsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(otpRef.current);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
 
     resendRef.current = setInterval(() => {
-      setResendSecsLeft(prev => {
-        if (prev <= 1) { clearInterval(resendRef.current); return 0; }
+      setResendSecsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(resendRef.current);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
-  };
+  }, [clearTimers]);
 
-  // Start on mount — startTimers/clearTimers only use stable refs + setState
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    startTimers();
-    return clearTimers;
-  }, []);
+    const timer = window.setTimeout(() => {
+      startTimers();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+      clearTimers();
+    };
+  }, [startTimers, clearTimers]);
 
   return {
     otpSecsLeft,

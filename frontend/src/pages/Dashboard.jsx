@@ -11,9 +11,8 @@ export default function Dashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState('');
-
   const [createError, setCreateError] = useState('');
-  const [creating, setCreating]       = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const createRoom = async () => {
     if (creating) return;
@@ -27,24 +26,28 @@ export default function Dashboard() {
       });
 
       let data;
-      try { data = await res.json(); }
-      catch { throw new Error('Server returned an unexpected response.'); }
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error('Server returned an unexpected response.');
+      }
 
       if (!res.ok) throw new Error(data.error || 'Failed to create room.');
       if (data.room) navigate(`/room/${data.room.roomId}`);
-    } catch (e) {
-      setCreateError(e.message === 'Failed to fetch'
-        ? 'Network error. Please check your connection.'
-        : e.message);
+    } catch (error) {
+      setCreateError(
+        error.message === 'Failed to fetch'
+          ? 'Network error. Please check your connection.'
+          : error.message
+      );
     } finally {
       setCreating(false);
     }
   };
 
-
-  const joinRoom = (e) => {
-    e.preventDefault();
-    if(roomId.trim()) navigate(`/room/${roomId.trim()}`);
+  const joinRoom = (event) => {
+    event.preventDefault();
+    if (roomId.trim()) navigate(`/room/${roomId.trim()}`);
   };
 
   return (
@@ -59,7 +62,7 @@ export default function Dashboard() {
             </div>
           )}
           <button className="btn btn-primary" onClick={createRoom} disabled={creating}>
-            {creating ? 'Creating…' : 'Create New Room'}
+            {creating ? 'Creating...' : 'Create New Room'}
           </button>
 
           <div className="section-divider" />

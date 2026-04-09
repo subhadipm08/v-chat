@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 export default function DraggableWrapper({ children, className, isDraggable = true }) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -51,13 +51,6 @@ export default function DraggableWrapper({ children, className, isDraggable = tr
     }
   };
 
-  // Reset position natively if the element drops out of drift mode
-  useEffect(() => {
-    if (!isDraggable) {
-      setPosition({ x: 0, y: 0 });
-    }
-  }, [isDraggable]);
-
   return (
     <div
       ref={containerRef}
@@ -67,7 +60,7 @@ export default function DraggableWrapper({ children, className, isDraggable = tr
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={{
-        transform: isDraggable ? `translate(${position.x}px, ${position.y}px)` : 'none',
+        transform: `translate(${isDraggable ? position.x : 0}px, ${isDraggable ? position.y : 0}px)`,
         cursor: isDraggable ? (isDragging ? 'grabbing' : 'grab') : 'default',
         touchAction: isDraggable ? 'none' : 'auto', 
         zIndex: isDraggable ? (isDragging ? 100 : 50) : undefined,

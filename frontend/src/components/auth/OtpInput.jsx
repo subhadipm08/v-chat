@@ -13,7 +13,7 @@ export default function OtpInput({ value, onChange }) {
     const firstEmpty = value.findIndex((v) => v === '');
     const idx = firstEmpty === -1 ? 5 : firstEmpty;
     refs.current[idx]?.focus();
-  }, []);
+  }, [value]);
 
   const handleKeyDown = (e, index) => {
     if (e.key === 'Backspace') {

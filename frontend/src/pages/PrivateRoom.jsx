@@ -4,7 +4,6 @@ import CallControls from '../components/call/CallControls';
 import RoomHeader from '../components/call/RoomHeader';
 import VideoTile from '../components/call/VideoTile';
 import DraggableWrapper from '../components/call/DraggableWrapper';
-import { AuthContext } from '../context/auth-context';
 import { SocketContext } from '../context/socket-context';
 import { usePrivateRoomSession } from '../hooks/usePrivateRoomSession';
 import PreJoinScreen from '../components/call/PreJoinScreen';
@@ -18,7 +17,6 @@ export default function PrivateRoom() {
   const [isValidatingRoom, setIsValidatingRoom] = useState(true);
   const [roomError, setRoomError] = useState('');
   const { socket } = useContext(SocketContext);
-  const { user } = useContext(AuthContext);
 
   const {
     localStream,
@@ -46,9 +44,9 @@ export default function PrivateRoom() {
           setRoomError(`Room with ID '${roomId}' does not exist.`);
           setTimeout(() => navigate('/dashboard'), 3000);
         }
-      } catch (err) {
-        setRoomError('Unable to verify room.');
-        setTimeout(() => navigate('/dashboard'), 3000);
+    } catch {
+      setRoomError('Unable to verify room.');
+      setTimeout(() => navigate('/dashboard'), 3000);
       } finally {
         setIsValidatingRoom(false);
       }

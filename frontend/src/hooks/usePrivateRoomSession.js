@@ -30,7 +30,7 @@ export function usePrivateRoomSession(socket, roomId) {
         socket.emit('join-room', { roomId });
         setHasJoined(true);
       }
-    } catch (err) {
+    } catch {
       setSessionError('Failed to initialize media.');
     }
   }, [initializeMedia, roomId, socket]);
@@ -77,7 +77,7 @@ export function usePrivateRoomSession(socket, roomId) {
       socket.off('room-full', handleRoomFull);
       socket.off('error', handleError);
     };
-  }, [socket, hasJoined, user.id, initiateCall, setInitialRemoteMediaStates, navigate, roomId]);
+  }, [socket, hasJoined, user.id, initiateCall, setInitialRemoteMediaStates, setRemoteUsernames, navigate, roomId]);
 
   const leaveRoom = useCallback(() => {
     stopMedia();
