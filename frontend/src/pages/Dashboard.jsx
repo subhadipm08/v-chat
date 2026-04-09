@@ -12,23 +12,35 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState('');
 
+  const [createError, setCreateError] = useState('');
+  const [creating, setCreating]       = useState(false);
+
   const createRoom = async () => {
+    if (creating) return;
+    setCreateError('');
+    setCreating(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/rooms/create`, {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      const data = await res.json();
-      if(data.room) {
-          navigate(`/room/${data.room.roomId}`);
-      }
+
+      let data;
+      try { data = await res.json(); }
+      catch { throw new Error('Server returned an unexpected response.'); }
+
+      if (!res.ok) throw new Error(data.error || 'Failed to create room.');
+      if (data.room) navigate(`/room/${data.room.roomId}`);
     } catch (e) {
-      console.error(e);
+      setCreateError(e.message === 'Failed to fetch'
+        ? 'Network error. Please check your connection.'
+        : e.message);
+    } finally {
+      setCreating(false);
     }
   };
+
 
   const joinRoom = (e) => {
     e.preventDefault();
@@ -41,8 +53,13 @@ export default function Dashboard() {
 
       <div className="dashboard-grid">
         <ActionPanel title="Private Rooms">
-          <button className="btn btn-primary" onClick={createRoom}>
-            Create New Room
+          {createError && (
+            <div className="banner banner-error" style={{ marginBottom: '1rem', fontSize: '0.875rem' }}>
+              {createError}
+            </div>
+          )}
+          <button className="btn btn-primary" onClick={createRoom} disabled={creating}>
+            {creating ? 'Creating…' : 'Create New Room'}
           </button>
 
           <div className="section-divider" />

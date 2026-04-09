@@ -21,3 +21,32 @@ export const createRoomSchema = z.object({
     maxParticipants: z.number().min(2).max(4).optional()
   })
 });
+
+export const verifyEmailSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email').transform(v => v.toLowerCase()),
+    otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
+  })
+});
+
+export const resendOtpSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email').transform(v => v.toLowerCase()),
+    type: z.enum(['verify', 'reset'], { message: "Type must be 'verify' or 'reset'" }),
+  })
+});
+
+export const forgotPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email').transform(v => v.toLowerCase()),
+  })
+});
+
+export const resetPasswordSchema = z.object({
+  body: z.object({
+    email: z.string().email('Invalid email').transform(v => v.toLowerCase()),
+    otp: z.string().length(6, 'OTP must be 6 digits').regex(/^\d{6}$/, 'OTP must be numeric'),
+    newPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  })
+});
+

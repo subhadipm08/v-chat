@@ -18,3 +18,22 @@ export const apiLimiter = rateLimit({
   },
   message: { error: 'Too many requests, please try again later.' }
 });
+
+// Strict limiter for sending OTPs (max 3 sends per 5 minutes per IP)
+export const otpSendLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 3,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many OTP requests. Please wait 5 minutes before trying again.' }
+});
+
+// Limiter for verifying OTPs (max 5 attempts per 5 minutes per IP)
+export const otpVerifyLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many verification attempts. Please wait 5 minutes.' }
+});
+

@@ -78,9 +78,41 @@ app.get('/api/healthz', (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.json({
-        "init": "Video-Conferencing-App REST API is Running."
-    });
+  res.json({ init: 'Video-Conferencing-App REST API is Running.' });
+});
+
+// ─── 404 — Unknown Route ────────────────────────────────────────────────────
+// Must be AFTER all route definitions. Returns clean JSON — never HTML.
+app.use((req, res) => {
+  res.status(404).json({ error: 'The requested resource was not found.' });
+});
+
+// ─── Global Error Handler ───────────────────────────────────────────────────
+// Express calls this 4-argument middleware whenever next(err) is called
+// OR when a synchronous error is thrown inside a route handler.
+// It is the last line of defence before the process crashes.
+// CRITICAL: Never expose err.stack or internal details in production.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Always log the full error server-side for debugging
+  logger.error(
+    { err, requestId: req.id, method: req.method, url: req.url },
+    'Unhandled server error'
+  );
+
+  // Determine HTTP status — use err.status/statusCode if set, else 500
+  const status = err.status || err.statusCode || 500;
+
+  // Safe client-facing message:
+  // - Development: show the actual message to speed up debugging
+  // - Production: always show a generic message (no stack, no paths, no code)
+  const clientMessage = isProduction
+    ? 'An unexpected error occurred. Please try again later.'
+    : (err.message || 'Internal Server Error');
+
+  res.status(status).json({ error: clientMessage });
 });
 
 export default server;
