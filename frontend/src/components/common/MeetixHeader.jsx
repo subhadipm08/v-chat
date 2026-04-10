@@ -1,5 +1,5 @@
 import { useContext, useEffect, useRef, useState } from 'react';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, User, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AuthContext } from '../../context/auth-context';
 import MeetixBrand from './MeetixBrand';
@@ -50,11 +50,16 @@ export default function MeetixHeader({
               aria-label={`Account menu for ${user.username}`}
               onClick={() => setProfileOpen((value) => !value)}
             >
-              <User size={16} />
+              <Menu size={20} />
             </button>
 
             {profileOpen ? (
               <div className="meetix-profile-menu">
+                <div className="meetix-profile-info">
+                  <User size={16} />
+                  <span>{user.username}</span>
+                </div>
+                <div className="meetix-profile-divider" />
                 <button
                   type="button"
                   className="meetix-profile-logout"
@@ -70,9 +75,11 @@ export default function MeetixHeader({
             ) : null}
           </div>
         ) : (
-          <Link to="/auth" className="btn btn-primary meetix-header-auth">
-            Login
-          </Link>
+          !actionLabel && (
+            <Link to="/auth" className="btn btn-primary meetix-header-auth">
+              Login
+            </Link>
+          )
         )}
       </div>
     </header>

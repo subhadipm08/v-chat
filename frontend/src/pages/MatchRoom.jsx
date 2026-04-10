@@ -57,7 +57,6 @@ export default function MatchRoom() {
 
   return (
     <div className={`room-page match-page-context ${matchPartnerId ? 'is-connected' : 'is-waiting'}`}>
-      <MeetixHeader actionLabel="Dashboard" actionTo="/dashboard" />
       <CallStatusPanel
         title="Random Match"
         status={matchPartnerId ? 'Connected' : status}
