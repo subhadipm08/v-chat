@@ -59,7 +59,7 @@ export const sendOtpEmail = async (to, otp, type) => {
           <p>${desc}</p>
           <div class="otp-box">
             <div class="otp-code">${otp}</div>
-            <div class="otp-timer">⏱ This OTP expires in <strong>5 minutes</strong></div>
+            <div class="otp-timer">⏱ This OTP expires in <strong>1 minute</strong></div>
           </div>
           <p style="font-size:13px; color:#64748b;">If you didn't request this, you can safely ignore this email. Do not share this OTP with anyone.</p>
         </div>
