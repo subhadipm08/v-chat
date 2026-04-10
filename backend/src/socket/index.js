@@ -8,7 +8,7 @@ import { registerRoomHandlers } from './roomHandlers.js';
 import { registerSignalingHandlers } from './signalingHandlers.js';
 import { authenticateSocket } from './socketAuth.js';
 import { getSocketUserKey, getUserSocketSetKey } from './socketState.js';
-import { updateOnlineUsers, emitInitialStats } from './statsService.js';
+import { emitInitialStats, registerOnlineUser, unregisterOnlineUser } from './statsService.js';
 
 const connectToSocket = (httpServer) => {
   const allowedOrigins = process.env.CORS_ORIGIN
@@ -32,13 +32,17 @@ const connectToSocket = (httpServer) => {
 
     logger.info({ socketId: socket.id, userId }, 'Socket connected');
 
-    await redisClient.sadd(userSocketSetKey, socket.id);
-    await redisClient.set(getSocketUserKey(socket.id), userId);
-
-    // Update global online stats
-    updateOnlineUsers(io, 1);
+    // Track unique user presence locally first; the periodic sync publishes the aggregate.
+    registerOnlineUser(socket);
     // Send immediate current stats to the joining user from local cache
     emitInitialStats(socket);
+
+    try {
+      await redisClient.sadd(userSocketSetKey, socket.id);
+      await redisClient.set(getSocketUserKey(socket.id), userId);
+    } catch (err) {
+      logger.error({ err, socketId: socket.id, userId }, 'Socket Redis bookkeeping failed');
+    }
 
     const roomHandlers = registerRoomHandlers({ io, socket, userId });
     const matchHandlers = registerMatchHandlers({ io, socket, userId });
@@ -56,16 +60,19 @@ const connectToSocket = (httpServer) => {
     socket.on('disconnect', async () => {
       logger.info({ socketId: socket.id, userId }, 'Socket disconnected');
 
-      await redisClient.srem(userSocketSetKey, socket.id);
+      try {
+        await redisClient.srem(userSocketSetKey, socket.id);
 
-      if ((await redisClient.scard(userSocketSetKey)) === 0) {
-        await redisClient.del(userSocketSetKey);
+        if ((await redisClient.scard(userSocketSetKey)) === 0) {
+          await redisClient.del(userSocketSetKey);
+        }
+
+        await redisClient.del(getSocketUserKey(socket.id));
+      } catch (err) {
+        logger.error({ err, socketId: socket.id, userId }, 'Socket Redis cleanup failed');
+      } finally {
+        unregisterOnlineUser(socket);
       }
-
-      await redisClient.del(getSocketUserKey(socket.id));
-      
-      // Update global online stats
-      updateOnlineUsers(io, -1);
     });
   });
 

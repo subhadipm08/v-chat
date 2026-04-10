@@ -15,6 +15,7 @@ export default function MatchRoom() {
   const { socket } = useContext(SocketContext);
   const navigate = useNavigate();
   const [remoteAspect, setRemoteAspect] = useState('full');
+  const webrtc = useMatchmakingRoom(socket);
   const {
     localStream,
     remoteStreams,
@@ -30,7 +31,7 @@ export default function MatchRoom() {
     hasJoined,
     partnerUsername,
     stopMedia,
-  } = useMatchmakingRoom(socket);
+  } = webrtc;
 
   // Pure-frontend exit from PreJoin: stop camera/mic, go back. No backend calls.
   const exitPreJoin = useCallback(() => {

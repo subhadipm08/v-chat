@@ -3,7 +3,12 @@ import { User } from '../models/user.model.js';
 import logger from '../utils/logger.js';
 import redisClient from '../utils/redis.js';
 import { getRoomMediaStateKey, isMatchRoom, MATCH_QUEUE_KEY } from './socketState.js';
-import { updateWaitingUsers, handleRoomJoin, handleRoomLeave } from './statsService.js';
+import {
+  clearRandomMatchState,
+  clearRandomMatchCallState,
+  markRandomMatchInCall,
+  markRandomMatchWaiting,
+} from './statsService.js';
 import { wrapSocket } from './socketWrapper.js';
 
 const parseRoomMediaStates = async (roomId) => {
@@ -24,10 +29,10 @@ const markMatchEnded = async (roomId) => {
 
 export const registerMatchHandlers = ({ io, socket, userId }) => {
   const removeFromQueue = async () => {
-    const wasRemoved = await redisClient.srem(MATCH_QUEUE_KEY, socket.id);
-    if (wasRemoved && socket.isWaiting) {
-      socket.isWaiting = false;
-      updateWaitingUsers(io, -1);
+    const wasWaiting = socket.isWaiting || socket.data?.randomStats?.waiting;
+    await redisClient.srem(MATCH_QUEUE_KEY, socket.id);
+    if (wasWaiting) {
+      clearRandomMatchState(socket);
     }
   };
 
@@ -48,9 +53,8 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
 
       if (socket.currentRoomId === roomId) {
         socket.currentRoomId = null;
-        await handleRoomLeave(io, roomId);
       }
-      socket.inRoom = false;
+      clearRandomMatchCallState(socket);
     }
   };
 
@@ -87,8 +91,7 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
       return;
     }
 
-    socket.isWaiting = true;
-    updateWaitingUsers(io, 1);
+    markRandomMatchWaiting(socket);
 
     // Ensure user is disconnected from previous match rooms first
     await leaveMatchRooms('partner-disconnected');
@@ -154,21 +157,15 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
     const partnerUser = await User.findById(partnerUserStr).select('username');
 
     // Update stats for the match
-    socket.isWaiting = false;
-    socket.inRoom = true;
+    clearRandomMatchState(socket);
     socket.currentRoomId = roomId;
-
-    updateWaitingUsers(io, -2); // Both self and partner are out of queue
-    await handleRoomJoin(io, roomId); // Stat for self
+    markRandomMatchInCall(socket);
 
     // Find the partner socket and update its state too
     const partnerSockets = await io.in(matchedSocketId).fetchSockets();
     if (partnerSockets.length > 0) {
       const partnerSocket = partnerSockets[0];
-      partnerSocket.isWaiting = false;
-      partnerSocket.inRoom = true;
       partnerSocket.currentRoomId = roomId;
-      await handleRoomJoin(io, roomId); // Stat for partner
     }
 
     socket.emit('match-found', {
@@ -200,6 +197,7 @@ export const registerMatchHandlers = ({ io, socket, userId }) => {
   socket.on('skip-match', wrapSocket(socket, async () => {
     await removeFromQueue();
     await leaveMatchRooms('partner-skipped');
+    clearRandomMatchState(socket);
   }));
 
   return {

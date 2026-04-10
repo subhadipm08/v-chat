@@ -1,177 +1,423 @@
-import redisClient, { pubClient, subClient } from '../utils/redis.js';
-import logger from '../utils/logger.js';
 import crypto from 'node:crypto';
 import os from 'node:os';
-import { MATCH_QUEUE_KEY } from './socketState.js';
+import logger from '../utils/logger.js';
+import redisClient from '../utils/redis.js';
+import { MATCH_QUEUE_KEY, isMatchRoom } from './socketState.js';
 
-const STATS_ONLINE_KEY = 'stats:online';
-const STATS_WAITING_KEY = 'stats:waiting';
-const STATS_ACTIVE_ROOMS_KEY = 'stats:activeRooms';
-const STATS_CHANNEL = 'stats:updates';
-const ROOM_COUNT_PREFIX = 'room_count:';
+const STATS_INSTANCE_PREFIX = 'stats:instance:';
+const STATS_SYNC_INTERVAL_MS = 15_000;
+const STATS_TTL_SECONDS = 45;
 
-// Guaranteed unique per machine and per process
 const instanceId = `${os.hostname()}-${process.pid}-${crypto.randomUUID()}`;
 
-// Local cache to minimize Redis read costs
-let localStats = { online: 0, waiting: 0, active: 0 };
+const onlineUserSocketCounts = new Map();
+const waitingUserIds = new Set();
+const inCallUserIds = new Set();
 
-// Helper to ensure values never drift below zero
-const clamp = (val) => Math.max(0, parseInt(val || 0, 10));
+let activeIo = null;
+let cachedGlobalStats = { online: 0, waiting: 0, active: 0, inCall: 0 };
+let syncInterval = null;
+let syncInFlight = false;
+let hasSyncedOnce = false;
 
-const updateLocalStats = (key, delta) => {
-  const statKey = key.replace('stats:', '');
-  if (statKey in localStats) {
-    localStats[statKey] = clamp(localStats[statKey] + delta);
+const clampCount = (value) => Math.max(0, Number.parseInt(value ?? 0, 10) || 0);
+
+const getUserId = (socket) => socket.user?._id?.toString?.() ?? null;
+
+const ensureRandomStatsState = (socket) => {
+  if (!socket.data) {
+    socket.data = {};
   }
-};
 
-export const updateStat = async (io, key, delta) => {
-  try {
-    const newVal = await redisClient.incrby(key, delta);
-    
-    // Update local copy immediately for "self" server
-    updateLocalStats(key, delta);
-    
-    // Publish to other instances
-    await pubClient.publish(STATS_CHANNEL, JSON.stringify({
-      instanceId,
-      key,
-      delta
-    }));
-
-    if (newVal < 0) {
-      await redisClient.set(key, 0);
-    }
-  } catch (err) {
-    logger.error({ err, key, delta }, 'Error updating stat in Redis/PubSub');
-  }
-};
-
-export const getStats = async () => {
-  try {
-    const [online, waiting, active] = await Promise.all([
-      redisClient.get(STATS_ONLINE_KEY),
-      redisClient.get(STATS_WAITING_KEY),
-      redisClient.get(STATS_ACTIVE_ROOMS_KEY),
-    ]);
-
-    return {
-      online: parseInt(online || 0, 10),
-      waiting: parseInt(waiting || 0, 10),
-      active: parseInt(active || 0, 10),
+  if (!socket.data.randomStats) {
+    socket.data.randomStats = {
+      active: false,
+      waiting: false,
+      inCall: false,
     };
+  }
+
+  return socket.data.randomStats;
+};
+
+const getLocalStatsSnapshot = () => ({
+  online: onlineUserSocketCounts.size,
+  waiting: waitingUserIds.size,
+  active: inCallUserIds.size,
+  inCall: inCallUserIds.size,
+});
+
+const replaceMapContents = (target, source) => {
+  target.clear();
+  for (const [key, value] of source.entries()) {
+    target.set(key, value);
+  }
+};
+
+const replaceSetContents = (target, source) => {
+  target.clear();
+  for (const value of source.values()) {
+    target.add(value);
+  }
+};
+
+const markSocketAsOnline = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const nextCount = (onlineUserSocketCounts.get(userId) ?? 0) + 1;
+  onlineUserSocketCounts.set(userId, nextCount);
+};
+
+const markSocketAsOffline = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const nextCount = (onlineUserSocketCounts.get(userId) ?? 0) - 1;
+  if (nextCount > 0) {
+    onlineUserSocketCounts.set(userId, nextCount);
+  } else {
+    onlineUserSocketCounts.delete(userId);
+  }
+
+  const randomStats = socket.data?.randomStats;
+  if (randomStats) {
+    if (randomStats.waiting) {
+      waitingUserIds.delete(userId);
+    }
+
+    if (randomStats.inCall) {
+      inCallUserIds.delete(userId);
+    }
+
+    randomStats.active = false;
+    randomStats.waiting = false;
+    randomStats.inCall = false;
+  }
+};
+
+const markRandomWaiting = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const randomStats = ensureRandomStatsState(socket);
+  randomStats.active = true;
+  randomStats.waiting = true;
+  randomStats.inCall = false;
+
+  socket.isWaiting = true;
+  socket.inRoom = false;
+
+  waitingUserIds.add(userId);
+  inCallUserIds.delete(userId);
+};
+
+const markRandomInCall = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const randomStats = ensureRandomStatsState(socket);
+  randomStats.active = true;
+  randomStats.waiting = false;
+  randomStats.inCall = true;
+
+  socket.isWaiting = false;
+  socket.inRoom = true;
+
+  waitingUserIds.delete(userId);
+  inCallUserIds.add(userId);
+};
+
+const clearRandomMatchStateForSocket = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const randomStats = ensureRandomStatsState(socket);
+  randomStats.active = false;
+  randomStats.waiting = false;
+  randomStats.inCall = false;
+
+  socket.isWaiting = false;
+  socket.inRoom = false;
+  socket.currentRoomId = null;
+
+  waitingUserIds.delete(userId);
+  inCallUserIds.delete(userId);
+};
+
+const clearRandomMatchCallStateForSocket = (socket) => {
+  const userId = getUserId(socket);
+  if (!userId) {
+    return;
+  }
+
+  const randomStats = ensureRandomStatsState(socket);
+  randomStats.inCall = false;
+
+  socket.inRoom = false;
+  socket.currentRoomId = null;
+
+  inCallUserIds.delete(userId);
+};
+
+const rebuildLocalStatsFromSockets = (io) => {
+  const nextOnlineUsers = new Map();
+  const nextWaitingUsers = new Set();
+  const nextInCallUsers = new Set();
+
+  for (const socket of io.of('/').sockets.values()) {
+    const userId = getUserId(socket);
+    if (!userId) {
+      continue;
+    }
+
+    nextOnlineUsers.set(userId, (nextOnlineUsers.get(userId) ?? 0) + 1);
+
+    const randomStats = socket.data?.randomStats;
+    if (!randomStats?.active) {
+      continue;
+    }
+
+    const isInRandomMatchRoom = Array.from(socket.rooms).some((roomId) => isMatchRoom(roomId));
+
+    if (isInRandomMatchRoom || randomStats.inCall) {
+      nextInCallUsers.add(userId);
+      continue;
+    }
+
+    if (randomStats.waiting) {
+      nextWaitingUsers.add(userId);
+    }
+  }
+
+  replaceMapContents(onlineUserSocketCounts, nextOnlineUsers);
+  replaceSetContents(waitingUserIds, nextWaitingUsers);
+  replaceSetContents(inCallUserIds, nextInCallUsers);
+};
+
+const flushLocalStatsToRedis = async (snapshot) => {
+  const key = `${STATS_INSTANCE_PREFIX}${instanceId}`;
+  await redisClient.set(
+    key,
+    JSON.stringify({
+      onlineUsers: Array.from(onlineUserSocketCounts.keys()),
+      waitingUsers: Array.from(waitingUserIds.values()),
+      inCallUsers: Array.from(inCallUserIds.values()),
+      counts: snapshot,
+      updatedAt: Date.now(),
+      instanceId,
+    }),
+    'EX',
+    STATS_TTL_SECONDS
+  );
+};
+
+const aggregateGlobalStats = async (fallbackSnapshot) => {
+  const pattern = `${STATS_INSTANCE_PREFIX}*`;
+  const keys = [];
+  let cursor = '0';
+
+  do {
+    const [nextCursor, batchKeys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = nextCursor;
+
+    if (batchKeys?.length) {
+      keys.push(...batchKeys);
+    }
+  } while (cursor !== '0');
+
+  if (keys.length === 0) {
+    return fallbackSnapshot;
+  }
+
+  const values = await redisClient.mget(keys);
+  const onlineUsers = new Set();
+  const waitingUsers = new Set();
+  const inCallUsers = new Set();
+
+  for (const value of values) {
+    if (!value) {
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(value);
+
+      if (Array.isArray(parsed.onlineUsers)) {
+        for (const userId of parsed.onlineUsers) {
+          onlineUsers.add(userId);
+        }
+      } else if (parsed.counts) {
+        const legacyKey = parsed.instanceId ?? value;
+        logger.warn('[STATS] Legacy online snapshot detected; counts may be temporarily overestimated until all instances refresh');
+        for (let index = 0; index < clampCount(parsed.counts.online); index += 1) {
+          onlineUsers.add(`${legacyKey}:online:${index}`);
+        }
+      }
+
+      if (Array.isArray(parsed.waitingUsers)) {
+        for (const userId of parsed.waitingUsers) {
+          waitingUsers.add(userId);
+        }
+      } else if (parsed.counts) {
+        const legacyKey = parsed.instanceId ?? value;
+        for (let index = 0; index < clampCount(parsed.counts.waiting); index += 1) {
+          waitingUsers.add(`${legacyKey}:waiting:${index}`);
+        }
+      }
+
+      if (Array.isArray(parsed.inCallUsers)) {
+        for (const userId of parsed.inCallUsers) {
+          inCallUsers.add(userId);
+        }
+      } else if (parsed.counts) {
+        const legacyKey = parsed.instanceId ?? value;
+        const fallbackActive = clampCount(parsed.counts.active ?? parsed.counts.inCall);
+        for (let index = 0; index < fallbackActive; index += 1) {
+          inCallUsers.add(`${legacyKey}:inCall:${index}`);
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, value }, '[STATS] Skipping malformed per-instance stats payload');
+    }
+  }
+
+  return {
+    online: onlineUsers.size,
+    waiting: waitingUsers.size,
+    active: inCallUsers.size,
+    inCall: inCallUsers.size,
+  };
+};
+
+const syncStats = async () => {
+  if (!activeIo || syncInFlight) {
+    return;
+  }
+
+  syncInFlight = true;
+
+  try {
+    rebuildLocalStatsFromSockets(activeIo);
+
+    const localSnapshot = getLocalStatsSnapshot();
+    await flushLocalStatsToRedis(localSnapshot);
+
+    cachedGlobalStats = await aggregateGlobalStats({
+      ...localSnapshot,
+    });
+    hasSyncedOnce = true;
+
+    activeIo.emit('stats', cachedGlobalStats);
   } catch (err) {
-    logger.error({ err }, 'Error fetching stats from Redis');
-    return { online: 0, waiting: 0, active: 0 };
+    const fallbackSnapshot = getLocalStatsSnapshot();
+    cachedGlobalStats = { ...fallbackSnapshot };
+    hasSyncedOnce = true;
+
+    if (activeIo) {
+      activeIo.emit('stats', cachedGlobalStats);
+    }
+
+    logger.error({ err, instanceId }, '[STATS] Failed to sync live stats');
+  } finally {
+    syncInFlight = false;
   }
 };
 
 export const setupStatsSync = (io) => {
-  // 1. Initial Load from Redis
-  getStats().then(stats => {
-    localStats = stats;
-    logger.info({ localStats, instanceId }, 'Stats Service Initialized');
-  });
+  activeIo = io;
 
-  // 2. Listen for updates from other instances
-  subClient.subscribe(STATS_CHANNEL);
-  subClient.on('message', (channel, message) => {
-    if (channel !== STATS_CHANNEL) return;
-    
-    try {
-      const { instanceId: senderId, key, delta } = JSON.parse(message);
-      
-      // Safeguard: Ignore updates from ourselves to avoid double counting
-      if (senderId === instanceId) return;
-
-      updateLocalStats(key, delta);
-    } catch (err) {
-      logger.error({ err, message }, 'Failed to parse stats PubSub message');
-    }
-  });
-
-  // 3. Periodic UI Broadcast (Throttled to 10s)
-  setInterval(() => {
-    io.emit('stats', localStats);
-  }, 10000);
-
-  // 4. Periodic Drift Correction (Re-sync from Redis every 60s)
-  setInterval(async () => {
-    const freshStats = await getStats();
-    localStats = freshStats;
-  }, 60000);
-};
-
-export const updateOnlineUsers = (io, delta) => {
-  updateStat(io, STATS_ONLINE_KEY, delta);
-};
-
-export const updateWaitingUsers = (io, delta) => {
-  updateStat(io, STATS_WAITING_KEY, delta);
-};
-
-export const updateActiveRooms = (io, delta) => {
-  updateStat(io, STATS_ACTIVE_ROOMS_KEY, delta);
-};
-
-export const handleRoomJoin = async (io, roomId) => {
-  const key = `${ROOM_COUNT_PREFIX}${roomId}`;
-  const count = await redisClient.incr(key);
-  
-  if (count === 2) {
-    // Room just became active (2 participants)
-    await updateActiveRooms(io, 1);
+  if (syncInterval) {
+    clearInterval(syncInterval);
   }
-  
-  // Set TTL to prevent leaks if something goes wrong (e.g., 24h)
-  await redisClient.expire(key, 86400);
-  return count;
+
+  void syncStats();
+
+  syncInterval = setInterval(() => {
+    void syncStats();
+  }, STATS_SYNC_INTERVAL_MS);
+
+  syncInterval.unref?.();
+
+  logger.info({ instanceId, syncIntervalMs: STATS_SYNC_INTERVAL_MS }, '[STATS] In-memory stats service initialized');
 };
 
-export const handleRoomLeave = async (io, roomId) => {
-  const key = `${ROOM_COUNT_PREFIX}${roomId}`;
-  const count = await redisClient.decr(key);
-  
-  if (count === 1) {
-    // Room just became inactive (only 1 participant left)
-    await updateActiveRooms(io, -1);
-  } else if (count <= 0) {
-    // Clean up empty room counters
-    await redisClient.del(key);
-  }
-  
-  return count > 0 ? count : 0;
+export const registerOnlineUser = (socket) => {
+  markSocketAsOnline(socket);
+};
+
+export const unregisterOnlineUser = (socket) => {
+  markSocketAsOffline(socket);
+};
+
+export const markRandomMatchWaiting = (socket) => {
+  markRandomWaiting(socket);
+};
+
+export const markRandomMatchInCall = (socket) => {
+  markRandomInCall(socket);
+};
+
+export const clearRandomMatchState = (socket) => {
+  clearRandomMatchStateForSocket(socket);
+};
+
+export const clearRandomMatchCallState = (socket) => {
+  clearRandomMatchCallStateForSocket(socket);
 };
 
 export const emitInitialStats = (socket) => {
-  socket.emit('stats', localStats);
+  if (!hasSyncedOnce) {
+    socket.emit('stats', getLocalStatsSnapshot());
+    return;
+  }
+
+  socket.emit('stats', cachedGlobalStats);
 };
 
-// Reset metrics that shouldn't persist across full system restarts (Maintenance Only)
+export const getStats = async () => cachedGlobalStats;
+
 export const resetVolatileStats = async () => {
   try {
-    logger.warn('[STATS] Performing a full volatile stats reset...');
-    
-    // 1. Reset global counters
-    await Promise.all([
-      redisClient.set(STATS_ONLINE_KEY, 0),
-      redisClient.set(STATS_WAITING_KEY, 0),
-      redisClient.set(STATS_ACTIVE_ROOMS_KEY, 0)
-    ]);
+    logger.warn('[STATS] Resetting volatile stats state');
 
-    // 2. Clear ephemeral matchmaking structures
-    // (Socket-based IDs are invalid after a restart)
-    await redisClient.del(MATCH_QUEUE_KEY); 
-    await redisClient.del('active_matches');
-    
-    // 3. Clear all temporary room participant counters
-    const keys = await redisClient.keys(`${ROOM_COUNT_PREFIX}*`);
+    onlineUserSocketCounts.clear();
+    waitingUserIds.clear();
+    inCallUserIds.clear();
+    cachedGlobalStats = { online: 0, waiting: 0, active: 0, inCall: 0 };
+    hasSyncedOnce = false;
+
+    const pattern = `${STATS_INSTANCE_PREFIX}*`;
+    let cursor = '0';
+    const keys = [];
+
+    do {
+      const [nextCursor, batchKeys] = await redisClient.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+
+      if (batchKeys?.length) {
+        keys.push(...batchKeys);
+      }
+    } while (cursor !== '0');
+
     if (keys.length > 0) {
       await redisClient.del(...keys);
     }
 
-    logger.info('[STATS] Volatile stats and ephemeral data cleared successfully.');
+    await redisClient.del(MATCH_QUEUE_KEY);
+    await redisClient.del('active_matches');
+
+    logger.info('[STATS] Volatile stats reset complete');
     return true;
   } catch (err) {
     logger.error({ err }, '[STATS] Failed to reset volatile stats');

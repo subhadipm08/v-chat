@@ -3,7 +3,6 @@ import logger from '../utils/logger.js';
 import redisClient from '../utils/redis.js';
 import { endSession, startSession } from './sessionService.js';
 import { getRoomMediaStateKey, isMatchRoom } from './socketState.js';
-import { handleRoomJoin, handleRoomLeave } from './statsService.js';
 import { wrapSocket } from './socketWrapper.js';
 
 const hasParticipant = (room, userId) =>
@@ -52,11 +51,9 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
 
     socket.leave(roomId);
     socket.to(roomId).emit('user-left', { userId, socketId: socket.id, username: socket.user?.username });
-    
-    // Centralized stat cleanup
+
     if (socket.currentRoomId === roomId) {
       socket.currentRoomId = null;
-      await handleRoomLeave(io, roomId);
     }
 
     await removeParticipantIfInactive(roomId);
@@ -84,7 +81,6 @@ export const registerRoomHandlers = ({ io, socket, userId }) => {
     // Track the room on the socket for cleanup and stats
     socket.currentRoomId = roomId;
     socket.inRoom = true;
-    await handleRoomJoin(io, roomId);
 
     await startSession({
       userId,

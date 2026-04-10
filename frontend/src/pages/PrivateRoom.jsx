@@ -18,6 +18,7 @@ export default function PrivateRoom() {
   useNavigate(); // kept for hook usage inside usePrivateRoomSession
   const { socket } = useContext(SocketContext);
 
+  const webrtc = usePrivateRoomSession(socket, roomId, isCreator);
   const {
     localStream,
     remoteStreams,
@@ -31,7 +32,7 @@ export default function PrivateRoom() {
     exitPreJoin,
     hasJoined,
     sessionError,
-  } = usePrivateRoomSession(socket, roomId, isCreator);
+  } = webrtc;
 
   const remoteParticipants = Object.entries(remoteStreams).slice(0, 3);
 
