@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = process.env.EMAIL_FROM || `"V-Chat" <${process.env.EMAIL_USER}>`;
+const FROM = process.env.EMAIL_FROM || `"Meetix" <${process.env.EMAIL_USER}>`;
 
 /**
  * Sends an OTP email for either email verification or password reset.
@@ -21,13 +21,13 @@ export const sendOtpEmail = async (to, otp, type) => {
   const isVerify = type === 'verify';
 
   const subject = isVerify
-    ? '✅ Verify Your V-Chat Account'
-    : '🔐 V-Chat Password Reset OTP';
+    ? '✅ Verify Your Meetix Account'
+    : '🔐 Meetix Password Reset OTP';
 
   const title = isVerify ? 'Verify Your Email' : 'Reset Your Password';
   const desc = isVerify
-    ? 'You recently signed up for V-Chat. Use the OTP below to verify your email address.'
-    : 'You requested to reset your V-Chat password. Use the OTP below to proceed.';
+    ? 'You recently signed up for Meetix. Use the OTP below to verify your email address.'
+    : 'You requested to reset your Meetix password. Use the OTP below to proceed.';
 
   const html = `
     <!DOCTYPE html>
@@ -52,19 +52,19 @@ export const sendOtpEmail = async (to, otp, type) => {
     <body>
       <div class="wrapper">
         <div class="header">
-          <h1>📹 V-Chat</h1>
+          <h1>📹 Meetix</h1>
           <p>${title}</p>
         </div>
         <div class="body">
           <p>${desc}</p>
           <div class="otp-box">
             <div class="otp-code">${otp}</div>
-            <div class="otp-timer">⏱ This OTP expires in <strong>1 minute</strong></div>
+            <div class="otp-timer">⏱ This OTP expires in <strong>5 minutes</strong></div>
           </div>
           <p style="font-size:13px; color:#64748b;">If you didn't request this, you can safely ignore this email. Do not share this OTP with anyone.</p>
         </div>
         <div class="footer">
-          <p>© ${new Date().getFullYear()} V-Chat · Real-time video conferencing</p>
+          <p>© ${new Date().getFullYear()} Meetix · Real-time video conferencing</p>
         </div>
       </div>
     </body>
