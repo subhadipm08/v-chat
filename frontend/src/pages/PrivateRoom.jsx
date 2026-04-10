@@ -7,6 +7,7 @@ import DraggableWrapper from '../components/call/DraggableWrapper';
 import { SocketContext } from '../context/socket-context';
 import { usePrivateRoomSession } from '../hooks/usePrivateRoomSession';
 import PreJoinScreen from '../components/call/PreJoinScreen';
+import MeetixHeader from '../components/common/MeetixHeader';
 import '../styles/Room.css';
 import '../styles/PrivateRoom.css';
 
@@ -60,6 +61,7 @@ export default function PrivateRoom() {
 
   return (
     <div className="room-page">
+      <MeetixHeader actionLabel="Dashboard" actionTo="/dashboard" />
       <RoomHeader roomId={roomId} />
 
       {mediaError ? <div className="banner banner-error">{mediaError}</div> : null}

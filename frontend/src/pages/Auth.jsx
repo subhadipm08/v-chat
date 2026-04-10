@@ -2,8 +2,9 @@ import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { AuthContext } from '../context/auth-context';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '../lib/config';
-import { Video } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import OtpInput from '../components/auth/OtpInput';
+import MeetixBrand from '../components/common/MeetixBrand';
 import '../styles/Auth.css';
 
 const EMPTY_OTP = ['', '', '', '', '', ''];
@@ -105,12 +106,29 @@ function AuthCard({ children }) {
     <div className="auth-container">
       <div className="glass-panel auth-card">
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-          <h2 className="brand-logo">
-            <span className="brand-logo-icon"><Video size={20} /></span> V-Chat
-          </h2>
+          <MeetixBrand />
         </div>
         {children}
       </div>
+    </div>
+  );
+}
+
+function PasswordField({ className = 'input-field', ...props }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const inputType = isVisible ? 'text' : 'password';
+
+  return (
+    <div className="password-field">
+      <input className={className} type={inputType} {...props} />
+      <button
+        type="button"
+        className="password-toggle"
+        onClick={() => setIsVisible((current) => !current)}
+        aria-label={isVisible ? 'Hide password' : 'Show password'}
+      >
+        {isVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
     </div>
   );
 }
@@ -149,8 +167,12 @@ function LoginStep({ onSuccess, onForgot, onSignup }) {
       <form onSubmit={handleSubmit} className="stack">
         <input className="input-field" type="email" placeholder="Email Address"
           value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-        <input className="input-field" type="password" placeholder="Password"
-          value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+        <PasswordField
+          placeholder="Password"
+          value={form.password}
+          onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+          required
+        />
         <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }} disabled={loading}>
           {loading ? 'Logging in…' : 'Login'}
         </button>
@@ -202,8 +224,12 @@ function SignupStep({ onSuccess, onLogin }) {
           value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} required />
         <input className="input-field" type="email" placeholder="Email Address"
           value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-        <input className="input-field" type="password" placeholder="Password (min 6 chars)"
-          value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} required />
+        <PasswordField
+          placeholder="Password (min 6 chars)"
+          value={form.password}
+          onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+          required
+        />
         <button type="submit" className="btn btn-primary" style={{ marginTop: '0.5rem' }} disabled={loading}>
           {loading ? 'Creating account…' : 'Sign Up'}
         </button>
@@ -448,10 +474,18 @@ function ResetPasswordStep({ email, onBack, onDone }) {
           value={otp}
           onChange={(i, v) => setOtp(prev => { const n = [...prev]; n[i] = v; return n; })}
         />
-        <input className="input-field" type="password" placeholder="New password (min 6 chars)"
-          value={newPassword} onChange={e => setNewPassword(e.target.value)} required />
-        <input className="input-field" type="password" placeholder="Confirm new password"
-          value={confirm} onChange={e => setConfirm(e.target.value)} required />
+        <PasswordField
+          placeholder="New password (min 6 chars)"
+          value={newPassword}
+          onChange={e => setNewPassword(e.target.value)}
+          required
+        />
+        <PasswordField
+          placeholder="Confirm new password"
+          value={confirm}
+          onChange={e => setConfirm(e.target.value)}
+          required
+        />
         <button
           type="submit"
           className="btn btn-primary"

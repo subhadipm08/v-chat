@@ -17,42 +17,40 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return <div className="auth-container"><h2>Loading...</h2></div>;
   if (!user) return <Navigate to="/auth" />;
-  return (
-    <SocketProvider>
-      <StatsProvider>
-        {children}
-      </StatsProvider>
-    </SocketProvider>
-  );
+  return children;
 };
 
 function App() {
   return (
     <ErrorBoundary>
       <NotificationProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/" element={<Home />} />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/room/:roomId" element={
-                <ProtectedRoute>
-                  <PrivateRoom />
-                </ProtectedRoute>
-              } />
-              <Route path="/random-match" element={
-                <ProtectedRoute>
-                  <MatchRoom />
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
+        <AuthProvider>
+          <SocketProvider>
+            <StatsProvider>
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/" element={<Home />} />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/room/:roomId" element={
+                    <ProtectedRoute>
+                      <PrivateRoom />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/random-match" element={
+                    <ProtectedRoute>
+                      <MatchRoom />
+                    </ProtectedRoute>
+                  } />
+                </Routes>
+              </BrowserRouter>
+            </StatsProvider>
+          </SocketProvider>
+        </AuthProvider>
       </NotificationProvider>
     </ErrorBoundary>
   );

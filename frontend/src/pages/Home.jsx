@@ -1,16 +1,27 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useContext } from 'react';
+import { useEffect, useMemo, useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/auth-context';
-import { Video, Lock, Shield, Users } from 'lucide-react';
+import { LayoutDashboard, Video, Lock, Shield, Users, LogIn } from 'lucide-react';
+import MeetixHeader from '../components/common/MeetixHeader';
 import '../styles/Home.css';
 
 export default function Home() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const [roomId, setRoomId] = useState('');
+  const heroPhrases = useMemo(() => ['Meet People.', 'Talk Instantly.'], []);
+  const [heroIndex, setHeroIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeroIndex((value) => (value + 1) % heroPhrases.length);
+    }, 2200);
+
+    return () => window.clearInterval(timer);
+  }, [heroPhrases.length]);
 
   const handleCreateRoom = () => {
-    if (user) navigate('/dashboard');
-    else navigate('/auth');
+    navigate('/room/new');
   };
 
   const handleRandomChat = () => {
@@ -18,38 +29,72 @@ export default function Home() {
     else navigate('/auth');
   };
 
+  const handleJoinRoom = (event) => {
+    event.preventDefault();
+
+    const nextRoomId = roomId.trim();
+    if (!nextRoomId) {
+      return;
+    }
+
+    navigate(`/room/${nextRoomId}`);
+  };
+
   return (
     <div className="home-container">
-      <nav className="home-nav">
-        <div className="brand-logo">
-          <span className="brand-logo-icon">
-            <Video size={20} />
-          </span>
-          <span>V-Chat</span>
-        </div>
-        <div className="nav-actions">
-          {user ? (
-            <Link to="/dashboard" className="btn-login">Dashboard</Link>
-          ) : (
-            <Link to="/auth" className="btn-login">Login</Link>
-          )}
-        </div>
-      </nav>
+      <div className="home-nav-shell">
+        <MeetixHeader
+          actionLabel={user ? 'Dashboard' : 'Login'}
+          actionIcon={user ? <LayoutDashboard size={16} /> : <LogIn size={16} />}
+          actionTo={user ? '/dashboard' : '/auth'}
+        />
+      </div>
 
       <main className="home-main">
         <section className="hero-section">
-          <h1 className="hero-title">Meet People. Talk Instantly.</h1>
+          <h1 className="hero-title hero-title-loop" aria-live="polite">
+            {heroPhrases.map((phrase, index) => (
+              <span
+                key={phrase}
+                className={`hero-title-phrase ${index === heroIndex ? 'is-active' : ''}`}
+                aria-hidden={index !== heroIndex}
+              >
+                {phrase}
+              </span>
+            ))}
+          </h1>
           <p className="hero-subtitle">
             Real-time random video chat powered by WebRTC. Sign in to start instantly.
           </p>
 
-          <div className="hero-cta">
-            <button onClick={handleRandomChat} className="btn-primary-glow">
-              <Video size={20} /> Join Random Chat
-            </button>
-            <button onClick={handleCreateRoom} className="btn-secondary-dark">
-              <Lock size={20} /> Create Private Room
-            </button>
+          <div className="hero-actions">
+            <div className="hero-cta">
+              <button onClick={handleRandomChat} className="btn-primary-glow">
+                <Video size={20} /> Join Random Chat
+              </button>
+              <button onClick={handleCreateRoom} className="btn-secondary-dark">
+                <Lock size={20} /> Create Private Room
+              </button>
+            </div>
+
+            <form className="room-join-card glass-panel" onSubmit={handleJoinRoom}>
+              <div>
+                <h3>Join Private Room</h3>
+                <p>Enter a room ID to jump straight into a private call.</p>
+              </div>
+              <div className="room-join-form">
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="Enter Room ID"
+                  value={roomId}
+                  onChange={(event) => setRoomId(event.target.value)}
+                />
+                <button type="submit" className="btn btn-primary">
+                  Join Room
+                </button>
+              </div>
+            </form>
           </div>
         </section>
 
@@ -58,7 +103,7 @@ export default function Home() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem' }}>
             <img
               src="/hp-asset1.png"
-              alt="V-Chat Interface"
+              alt="Meetix Interface"
               style={{
                 width: '100%',
                 maxWidth: '800px',
@@ -73,7 +118,7 @@ export default function Home() {
         </section>
 
         <section className="features-section">
-          <h2 className="section-title">Why Use V-Chat?</h2>
+          <h2 className="section-title">Why Use Meetix?</h2>
           <div className="features-grid">
             <div className="feature-card">
               <div className="feature-icon"><Lock size={36} /></div>
@@ -106,7 +151,7 @@ export default function Home() {
           </a>
         </p>
         <p style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#475569' }}>
-          (c) 2026 V-Chat. All rights reserved.
+          {'\u00A9'} 2026 Meetix. All rights reserved.
         </p>
       </footer>
     </div>

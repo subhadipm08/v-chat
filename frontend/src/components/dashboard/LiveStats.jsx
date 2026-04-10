@@ -31,16 +31,17 @@ export default function LiveStats() {
   return (
     <div className="stats-grid" style={{ 
       display: 'grid', 
-      gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-      gap: '1rem',
-      margin: '1.5rem 0'
+      gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', 
+      gap: '0.9rem',
+      margin: '1rem 0 1.5rem',
+      width: '100%'
     }}>
       {statItems.map((item, index) => (
         <div 
           key={index} 
           className="glass-panel" 
           style={{ 
-            padding: '1.25rem',
+            padding: 'clamp(1rem, 2vw, 1.25rem)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
@@ -67,12 +68,12 @@ export default function LiveStats() {
           </div>
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
-            <span style={{ fontSize: '2rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+            <span style={{ fontSize: 'clamp(1.6rem, 4vw, 2rem)', fontWeight: '700', color: 'var(--text-primary)' }}>
               {item.value}
             </span>
           </div>
 
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
             {item.description}
           </p>
 

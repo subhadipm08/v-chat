@@ -6,6 +6,7 @@ import CallStatusPanel from '../components/call/CallStatusPanel';
 import VideoTile from '../components/call/VideoTile';
 import DraggableWrapper from '../components/call/DraggableWrapper';
 import PreJoinScreen from '../components/call/PreJoinScreen';
+import MeetixHeader from '../components/common/MeetixHeader';
 import { SocketContext } from '../context/socket-context';
 import { useMatchmakingRoom } from '../hooks/useMatchmakingRoom';
 import '../styles/Room.css';
@@ -56,6 +57,7 @@ export default function MatchRoom() {
 
   return (
     <div className={`room-page match-page-context ${matchPartnerId ? 'is-connected' : 'is-waiting'}`}>
+      <MeetixHeader actionLabel="Dashboard" actionTo="/dashboard" />
       <CallStatusPanel
         title="Random Match"
         status={matchPartnerId ? 'Connected' : status}

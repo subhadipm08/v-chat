@@ -150,3 +150,19 @@
   flex-direction: column;
   gap: 1.25rem;
 }
+
+@media (max-width: 480px) {
+  .otp-group {
+    gap: 8px;
+  }
+
+  .otp-cell {
+    width: 42px;
+    height: 52px;
+    font-size: 1.25rem;
+  }
+
+  .auth-card {
+    padding: 1.5rem;
+  }
+}
