@@ -1,4 +1,5 @@
-import { useContext, useState } from 'react';
+import { useContext, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { SkipForward, Smartphone, Monitor, Maximize } from 'lucide-react';
 import CallControls from '../components/call/CallControls';
 import CallStatusPanel from '../components/call/CallStatusPanel';
@@ -12,6 +13,7 @@ import '../styles/MatchRoom.css';
 
 export default function MatchRoom() {
   const { socket } = useContext(SocketContext);
+  const navigate = useNavigate();
   const [remoteAspect, setRemoteAspect] = useState('full');
   const {
     localStream,
@@ -27,7 +29,14 @@ export default function MatchRoom() {
     handleSkip,
     hasJoined,
     partnerUsername,
+    stopMedia,
   } = useMatchmakingRoom(socket);
+
+  // Pure-frontend exit from PreJoin: stop camera/mic, go back. No backend calls.
+  const exitPreJoin = useCallback(() => {
+    stopMedia();
+    navigate('/dashboard');
+  }, [stopMedia, navigate]);
 
   const matchPartnerId = Object.keys(remoteStreams)[0];
 
@@ -38,6 +47,7 @@ export default function MatchRoom() {
         localMediaState={localMediaState}
         toggleMedia={toggleMedia}
         onJoin={joinQueue}
+        onExit={exitPreJoin}
         mediaError={mediaError}
       />
     );

@@ -8,6 +8,7 @@ import { registerRoomHandlers } from './roomHandlers.js';
 import { registerSignalingHandlers } from './signalingHandlers.js';
 import { authenticateSocket } from './socketAuth.js';
 import { getSocketUserKey, getUserSocketSetKey } from './socketState.js';
+import { updateOnlineUsers, emitInitialStats } from './statsService.js';
 
 const connectToSocket = (httpServer) => {
   const allowedOrigins = process.env.CORS_ORIGIN
@@ -34,6 +35,11 @@ const connectToSocket = (httpServer) => {
     await redisClient.sadd(userSocketSetKey, socket.id);
     await redisClient.set(getSocketUserKey(socket.id), userId);
 
+    // Update global online stats
+    updateOnlineUsers(io, 1);
+    // Send immediate current stats to the joining user from local cache
+    emitInitialStats(socket);
+
     const roomHandlers = registerRoomHandlers({ io, socket, userId });
     const matchHandlers = registerMatchHandlers({ io, socket, userId });
     registerSignalingHandlers({ io, socket, userId });
@@ -57,6 +63,9 @@ const connectToSocket = (httpServer) => {
       }
 
       await redisClient.del(getSocketUserKey(socket.id));
+      
+      // Update global online stats
+      updateOnlineUsers(io, -1);
     });
   });
 

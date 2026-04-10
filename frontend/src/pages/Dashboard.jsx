@@ -2,48 +2,19 @@ import { useContext, useState } from 'react';
 import { AuthContext } from '../context/auth-context';
 import { useNavigate } from 'react-router-dom';
 import { Shuffle } from 'lucide-react';
-import { API_BASE_URL } from '../lib/config';
 import DashboardHeader from '../components/dashboard/DashboardHeader';
 import ActionPanel from '../components/dashboard/ActionPanel';
+import LiveStats from '../components/dashboard/LiveStats';
 import '../styles/Dashboard.css';
 
 export default function Dashboard() {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState('');
-  const [createError, setCreateError] = useState('');
-  const [creating, setCreating] = useState(false);
 
-  const createRoom = async () => {
-    if (creating) return;
-    setCreateError('');
-    setCreating(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/rooms/create`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        throw new Error('Server returned an unexpected response.');
-      }
-
-      if (!res.ok) throw new Error(data.error || 'Failed to create room.');
-      if (data.room) navigate(`/room/${data.room.roomId}`);
-    } catch (error) {
-      setCreateError(
-        error.message === 'Failed to fetch'
-          ? 'Network error. Please check your connection.'
-          : error.message
-      );
-    } finally {
-      setCreating(false);
-    }
-  };
+  // No API call here — room is only created in MongoDB when the user
+  // explicitly clicks "Join" on the PreJoin screen (lazy resource creation).
+  const createRoom = () => navigate('/room/new');
 
   const joinRoom = (event) => {
     event.preventDefault();
@@ -54,15 +25,13 @@ export default function Dashboard() {
     <div className="page-shell">
       <DashboardHeader username={user.username} onLogout={logout} />
 
-      <div className="dashboard-grid">
+      <div className="container" style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 1.5rem' }}>
+        <LiveStats />
+        
+        <div className="dashboard-grid">
         <ActionPanel title="Private Rooms">
-          {createError && (
-            <div className="banner banner-error" style={{ marginBottom: '1rem', fontSize: '0.875rem' }}>
-              {createError}
-            </div>
-          )}
-          <button className="btn btn-primary" onClick={createRoom} disabled={creating}>
-            {creating ? 'Creating...' : 'Create New Room'}
+          <button className="btn btn-primary" onClick={createRoom}>
+            Create New Room
           </button>
 
           <div className="section-divider" />
@@ -96,5 +65,6 @@ export default function Dashboard() {
         </ActionPanel>
       </div>
     </div>
-  );
+  </div>
+);
 }

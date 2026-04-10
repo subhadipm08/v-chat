@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import CallControls from '../components/call/CallControls';
 import RoomHeader from '../components/call/RoomHeader';
@@ -7,15 +7,15 @@ import DraggableWrapper from '../components/call/DraggableWrapper';
 import { SocketContext } from '../context/socket-context';
 import { usePrivateRoomSession } from '../hooks/usePrivateRoomSession';
 import PreJoinScreen from '../components/call/PreJoinScreen';
-import { API_BASE_URL } from '../lib/config';
 import '../styles/Room.css';
 import '../styles/PrivateRoom.css';
 
 export default function PrivateRoom() {
   const { roomId } = useParams();
-  const navigate = useNavigate();
-  const [isValidatingRoom, setIsValidatingRoom] = useState(true);
-  const [roomError, setRoomError] = useState('');
+  // 'new' → creator mode: room is created on Join click, not before.
+  // ':id' → joiner mode: room is validated on Join click, not on mount.
+  const isCreator = roomId === 'new';
+  useNavigate(); // kept for hook usage inside usePrivateRoomSession
   const { socket } = useContext(SocketContext);
 
   const {
@@ -28,56 +28,30 @@ export default function PrivateRoom() {
     remoteUsernames,
     joinRoom,
     leaveRoom,
+    exitPreJoin,
     hasJoined,
-    sessionError
-  } = usePrivateRoomSession(socket, roomId);
+    sessionError,
+  } = usePrivateRoomSession(socket, roomId, isCreator);
 
-  const remoteParticipants = Object.entries(remoteStreams).slice(0, 3); // Max 3 remotes + 1 local = 4
+  const remoteParticipants = Object.entries(remoteStreams).slice(0, 3);
 
-  useEffect(() => {
-    const checkRoomExists = async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/rooms/verify/${roomId}`, {
-          credentials: 'include'
-        });
-        if (!res.ok) {
-          setRoomError(`Room with ID '${roomId}' does not exist.`);
-          setTimeout(() => navigate('/dashboard'), 3000);
-        }
-    } catch {
-      setRoomError('Unable to verify room.');
-      setTimeout(() => navigate('/dashboard'), 3000);
-      } finally {
-        setIsValidatingRoom(false);
-      }
-    };
-    checkRoomExists();
-  }, [roomId, navigate]);
-
-  if (roomError || sessionError) {
+  if (sessionError) {
     return (
       <div className="room-page" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: '1.5rem' }}>
-        <div className="banner banner-error" style={{ fontSize: '1.2rem', padding: '1rem 2rem' }}>{roomError || sessionError}</div>
+        <div className="banner banner-error" style={{ fontSize: '1.2rem', padding: '1rem 2rem' }}>{sessionError}</div>
         <p style={{ color: 'var(--text-secondary)' }}>Redirecting to dashboard...</p>
       </div>
     );
   }
 
   if (!hasJoined) {
-    if (isValidatingRoom) {
-      return (
-        <div className="room-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div className="loader"></div>
-        </div>
-      );
-    }
-
     return (
       <PreJoinScreen
         localStream={localStream}
         localMediaState={localMediaState}
         toggleMedia={toggleMedia}
         onJoin={joinRoom}
+        onExit={exitPreJoin}
         mediaError={mediaError}
       />
     );

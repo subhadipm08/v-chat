@@ -12,6 +12,7 @@ import redisClient from "./utils/redis.js";
 import authRoutes from "./routes/auth.route.js";
 import roomRoutes from "./routes/room.route.js";
 import connectToSocket from "./socket/index.js";
+import { setupStatsSync } from "./socket/statsService.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -22,6 +23,9 @@ const allowedOrigins = process.env.CORS_ORIGIN
 
 // Gracefully attach socket io to HTTP server
 const io = connectToSocket(server);
+
+// Initialize distributed stats synchronization
+setupStatsSync(io);
 
 // Middleware
 app.use(helmet());

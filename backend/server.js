@@ -5,6 +5,7 @@ import logger from './src/utils/logger.js';
 import redisClient from './src/utils/redis.js';
 import mongoose from 'mongoose';
 import { Session } from './src/models/session.model.js';
+import { resetVolatileStats } from './src/socket/statsService.js';
 
 dotenv.config({ quiet: true });
 
@@ -20,6 +21,11 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
     try {
         await connectDB();
+
+        // Check for manual stats reset flag
+        if (process.env.RESET_STATS === 'true') {
+            await resetVolatileStats();
+        }
         
         server.listen(PORT, () => {
              logger.info(`Server running on port ${PORT}`);

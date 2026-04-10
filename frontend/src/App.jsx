@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useContext } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
+import { StatsProvider } from './context/stats-context';
 import { AuthContext } from './context/auth-context';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -14,7 +15,13 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useContext(AuthContext);
   if (loading) return <div className="auth-container"><h2>Loading...</h2></div>;
   if (!user) return <Navigate to="/auth" />;
-  return <SocketProvider>{children}</SocketProvider>;
+  return (
+    <SocketProvider>
+      <StatsProvider>
+        {children}
+      </StatsProvider>
+    </SocketProvider>
+  );
 };
 
 function App() {
