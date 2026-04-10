@@ -78,11 +78,13 @@ const shutdownLine = async (signal) => {
 
 process.on('SIGINT', () => shutdownLine('SIGINT'));
 process.on('SIGTERM', () => shutdownLine('SIGTERM'));
+
 process.on('uncaughtException', (err) => {
-    logger.error({ err }, 'Uncaught Exception');
+    logger.fatal({ err }, 'UNCAUGHT EXCEPTION! Shutting down...');
     shutdownLine('uncaughtException');
 });
+
 process.on('unhandledRejection', (reason) => {
-    logger.error({ err: reason }, 'Unhandled Rejection');
+    logger.fatal({ err: reason }, 'UNHANDLED REJECTION! Shutting down...');
     shutdownLine('unhandledRejection');
 });

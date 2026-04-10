@@ -167,3 +167,57 @@
     flex-wrap: wrap;
   }
 }
+/* ─── Room Overlays (Failure/Status) ───────────────────────────────── */
+.room-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: overlay-fade-in 0.3s ease-out;
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.overlay-content {
+  max-width: 400px;
+  text-align: center;
+  padding: 2.5rem !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.overlay-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.overlay-content h3 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: #fecaca;
+}
+
+.overlay-content p {
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.overlay-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.overlay-actions .btn {
+  width: 100%;
+}

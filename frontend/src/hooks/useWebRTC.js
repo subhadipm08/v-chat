@@ -21,6 +21,7 @@ export function useWebRTC(socket, roomIdProps) {
   const [localMediaState, setLocalMediaState] = useState(DEFAULT_MEDIA_STATE);
   const [remoteMediaStates, setRemoteMediaStates] = useState({});
   const [remoteUsernames, setRemoteUsernames] = useState({});
+  const [connectionStatus, setConnectionStatus] = useState('stable'); // 'stable', 'unstable', 'failed'
 
   const peerConnections = useRef({});
   const peerMetadata = useRef({});
@@ -112,7 +113,17 @@ export function useWebRTC(socket, roomIdProps) {
       .catch(err => {
         mediaPromiseRef.current = null;
         console.error('Media devices error:', err);
-        setMediaError(err.name);
+        
+        let errorType = 'UNKNOWN_ERROR';
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          errorType = 'PERMISSION_DENIED';
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          errorType = 'DEVICE_NOT_FOUND';
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          errorType = 'DEVICE_IN_USE';
+        }
+
+        setMediaError(errorType);
         return null;
       });
 
@@ -199,8 +210,24 @@ export function useWebRTC(socket, roomIdProps) {
       }, 5000);
 
       peerConnection.onconnectionstatechange = () => {
-        if (['disconnected', 'failed', 'closed'].includes(peerConnection.connectionState)) {
+        const state = peerConnection.connectionState;
+        
+        if (state === 'failed') {
+          setConnectionStatus('failed');
+        } else if (state === 'disconnected') {
+          setConnectionStatus('unstable');
+        } else if (state === 'connected') {
+          setConnectionStatus('stable');
+        }
+
+        if (['disconnected', 'failed', 'closed'].includes(state)) {
           cleanupPeerConnection(targetSocketId, remoteUserId);
+        }
+      };
+
+      peerConnection.oniceconnectionstatechange = () => {
+        if (peerConnection.iceConnectionState === 'failed') {
+          setConnectionStatus('failed');
         }
       };
 
@@ -358,9 +385,22 @@ export function useWebRTC(socket, roomIdProps) {
     mediaPromiseRef.current = null;
     hasInitialized.current = false;
     setLocalStream(null);
-    setRemoteStreams({}); // Triggers VideoTile.jsx srcObject = null for all
+    setRemoteStreams({}); 
     setLocalMediaState(DEFAULT_MEDIA_STATE);
+    setConnectionStatus('stable');
   }, []);
+
+  const lastRetryRef = useRef(0);
+
+  const retryCall = useCallback((targetSocketId, remoteUserId) => {
+    const now = Date.now();
+    if (now - lastRetryRef.current < 2000) {
+      return; // Prevent rapid retries
+    }
+    lastRetryRef.current = now;
+    setConnectionStatus('stable');
+    initiateCall(targetSocketId, remoteUserId);
+  }, [initiateCall]);
 
   useEffect(() => {
     if (!socket) {
@@ -417,6 +457,8 @@ export function useWebRTC(socket, roomIdProps) {
     remoteUsernames,
     setInitialRemoteMediaStates,
     resetCallState,
-    setRemoteUsernames
+    setRemoteUsernames,
+    connectionStatus,
+    retryCall
   };
 }

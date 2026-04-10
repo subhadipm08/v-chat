@@ -91,6 +91,26 @@ export default function MatchRoom() {
               <div style={{ color: 'var(--text-secondary)' }}>Finding a match...</div>
             </div>
           )}
+
+          {webrtc.connectionStatus === 'failed' && (
+            <div className="room-overlay connection-failure-overlay">
+              <div className="glass-panel overlay-content">
+                <div className="overlay-icon">📡</div>
+                <h3>Connection Failed</h3>
+                <p>We couldn't establish a secure connection. This usually happens due to restrictive network firewalls. Try switching to a different Wi-fi or using mobile data.</p>
+                <div className="overlay-actions">
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => webrtc.retryCall(matchPartnerId, Object.values(webrtc.remoteUsernames)[0])}
+                  >
+                    Retry Connection
+                  </button>
+                  <button className="btn" onClick={handleSkip}>Skip to Next</button>
+                  <button className="btn btn-danger" onClick={leaveRoom}>Go Back</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {matchPartnerId && (

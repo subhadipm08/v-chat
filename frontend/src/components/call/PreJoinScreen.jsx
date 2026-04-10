@@ -23,7 +23,14 @@ export default function PreJoinScreen({
       <div className="glass-panel" style={{ padding: '2rem', width: '100%', maxWidth: '600px', textAlign: 'center' }}>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1.5rem' }}>Ready to Join?</h2>
 
-        {mediaError && <div className="banner banner-error">{mediaError}</div>}
+        {mediaError && (
+          <div className="banner banner-error">
+            {mediaError === 'PERMISSION_DENIED' && 'Camera/Mic access is blocked. Please enable it in your browser settings to continue.'}
+            {mediaError === 'DEVICE_NOT_FOUND' && 'No camera or microphone found. Please connect your hardware and refresh.'}
+            {mediaError === 'DEVICE_IN_USE' && 'Your camera or mic is being used by another app. Please close other apps and try again.'}
+            {mediaError === 'UNKNOWN_ERROR' && 'Something went wrong accessing your media. Please try again.'}
+          </div>
+        )}
 
         <div style={{ backgroundColor: '#000', borderRadius: '12px', overflow: 'hidden', aspectRatio: '16/9', position: 'relative', width: '100%', margin: '0 auto 1.5rem' }}>
           {localStream && localMediaState.isCameraOn ? (
@@ -37,7 +44,7 @@ export default function PreJoinScreen({
           ) : (
              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                {mediaError
-                 ? 'Camera/Mic unavailable'
+                 ? 'Access Required'
                  : (!localStream ? 'Loading preview...' : 'Turn on video to see preview')}
              </div>
           )}

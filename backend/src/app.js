@@ -7,6 +7,7 @@ import { apiLimiter } from "./middleware/rateLimiter.js";
 import helmet from "helmet";
 import mongoose from "mongoose";
 import redisClient from "./utils/redis.js";
+import AppError from "./utils/AppError.js";
 
 // Controllers / Routes
 import authRoutes from "./routes/auth.route.js";
@@ -99,24 +100,35 @@ app.use((req, res) => {
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
   const isProduction = process.env.NODE_ENV === 'production';
+  
+  // Use existing referenceId (from AppError) or generate a temporary one
+  const referenceId = err.referenceId || `REF-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+  const statusCode = err.statusCode || 500;
 
-  // Always log the full error server-side for debugging
+  // Always log the full error server-side for debugging with the referenceId
   logger.error(
-    { err, requestId: req.id, method: req.method, url: req.url },
-    'Unhandled server error'
+    { 
+      err, 
+      referenceId,
+      requestId: req.id, 
+      method: req.method, 
+      url: req.url,
+      userId: req.user?._id // If auth middleware added it
+    },
+    `Error [${referenceId}] - ${err.message}`
   );
 
-  // Determine HTTP status — use err.status/statusCode if set, else 500
-  const status = err.status || err.statusCode || 500;
+  // Determine user-safe message
+  let message = 'An unexpected error occurred. Please try again later.';
+  
+  if (!isProduction || err.isOperational) {
+    message = err.message;
+  }
 
-  // Safe client-facing message:
-  // - Development: show the actual message to speed up debugging
-  // - Production: always show a generic message (no stack, no paths, no code)
-  const clientMessage = isProduction
-    ? 'An unexpected error occurred. Please try again later.'
-    : (err.message || 'Internal Server Error');
-
-  res.status(status).json({ error: clientMessage });
+  res.status(statusCode).json({ 
+    error: message,
+    reference_id: referenceId
+  });
 });
 
 export default server;

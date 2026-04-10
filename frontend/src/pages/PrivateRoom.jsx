@@ -92,6 +92,24 @@ export default function PrivateRoom() {
           />
         </DraggableWrapper>
 
+        {webrtc.connectionStatus === 'failed' && (
+          <div className="room-overlay connection-failure-overlay">
+            <div className="glass-panel overlay-content">
+              <div className="overlay-icon">📡</div>
+              <h3>Connection Failed</h3>
+              <p>We couldn't establish a secure connection. This usually happens due to restrictive network firewalls. Try switching to a different Wi-fi or using mobile data.</p>
+              <div className="overlay-actions">
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => window.location.reload()}
+                >
+                  Reload to Retry
+                </button>
+                <button className="btn btn-danger" onClick={leaveRoom}>Leave Room</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <CallControls

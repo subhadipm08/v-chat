@@ -1,7 +1,8 @@
 import logger from '../utils/logger.js';
+import { wrapSocket } from './socketWrapper.js';
 
 export const registerSignalingHandlers = ({ io, socket, userId }) => {
-  socket.on('offer', ({ payload, target, roomId }) => {
+  socket.on('offer', wrapSocket(socket, ({ payload, target, roomId }) => {
     if (!target) {
       logger.warn({ socketId: socket.id, roomId }, 'Offer dropped because target socket is missing');
       return;
@@ -13,9 +14,9 @@ export const registerSignalingHandlers = ({ io, socket, userId }) => {
       callerId: userId,
       roomId,
     });
-  });
+  }));
 
-  socket.on('answer', ({ payload, target, roomId }) => {
+  socket.on('answer', wrapSocket(socket, ({ payload, target, roomId }) => {
     if (!target) {
       logger.warn({ socketId: socket.id, roomId }, 'Answer dropped because target socket is missing');
       return;
@@ -27,9 +28,9 @@ export const registerSignalingHandlers = ({ io, socket, userId }) => {
       answererId: userId,
       roomId,
     });
-  });
+  }));
 
-  socket.on('ice-candidate', ({ candidate, target, roomId }) => {
+  socket.on('ice-candidate', wrapSocket(socket, ({ candidate, target, roomId }) => {
     if (!target) {
       logger.warn({ socketId: socket.id, roomId }, 'ICE candidate dropped because target socket is missing');
       return;
@@ -40,5 +41,5 @@ export const registerSignalingHandlers = ({ io, socket, userId }) => {
       sender: socket.id,
       roomId,
     });
-  });
+  }));
 };

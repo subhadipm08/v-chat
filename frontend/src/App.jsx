@@ -3,6 +3,8 @@ import { useContext } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { SocketProvider } from './context/SocketContext';
 import { StatsProvider } from './context/stats-context';
+import { NotificationProvider } from './context/NotificationContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthContext } from './context/auth-context';
 import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
@@ -26,29 +28,33 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/" element={<Home />} />
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          } />
-          <Route path="/room/:roomId" element={
-            <ProtectedRoute>
-              <PrivateRoom />
-            </ProtectedRoute>
-          } />
-          <Route path="/random-match" element={
-            <ProtectedRoute>
-              <MatchRoom />
-            </ProtectedRoute>
-          } />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <NotificationProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/" element={<Home />} />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/room/:roomId" element={
+                <ProtectedRoute>
+                  <PrivateRoom />
+                </ProtectedRoute>
+              } />
+              <Route path="/random-match" element={
+                <ProtectedRoute>
+                  <MatchRoom />
+                </ProtectedRoute>
+              } />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 }
 
