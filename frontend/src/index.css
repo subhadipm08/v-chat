@@ -57,6 +57,7 @@ html, #root {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  text-decoration: none;
 }
 
 .btn-primary {
@@ -281,6 +282,22 @@ html, #root {
   max-width: calc(100vw - 1rem);
   overflow: hidden;
   transform-origin: top right;
+}
+
+.meetix-profile-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.meetix-profile-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0.4rem 0.5rem;
 }
 
 .meetix-profile-logout {

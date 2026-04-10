@@ -61,7 +61,6 @@ export default function PrivateRoom() {
 
   return (
     <div className="room-page">
-      <MeetixHeader actionLabel="Dashboard" actionTo="/dashboard" />
       <RoomHeader roomId={roomId} />
 
       {mediaError ? <div className="banner banner-error">{mediaError}</div> : null}
