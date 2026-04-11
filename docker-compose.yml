@@ -1,5 +1,5 @@
 services:
-  backend:
+  backend-1:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -17,7 +17,25 @@ services:
       retries: 3
       start_period: 20s
 
-  frontend:
+  backend-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: video-chat-backend:latest
+    restart: unless-stopped
+    mem_limit: 300m
+    env_file:
+      - ./backend/.env.production
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/healthz').then((res) => process.exit(res.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -28,7 +46,9 @@ services:
     restart: unless-stopped
     mem_limit: 300m
     depends_on:
-      backend:
+      backend-1:
+        condition: service_healthy
+      backend-2:
         condition: service_healthy
     ports:
       - "80:80"
